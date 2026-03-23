@@ -21,13 +21,13 @@ class TutorialController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('titulo', 'like', "%{$search}%")
-                  ->orWhere('descripcion', 'like', "%{$search}%")
-                  ->orWhere('tipo_material', 'like', "%{$search}%")
-                  ->orWhere('formato', 'like', "%{$search}%")
-                  ->orWhere('alcance', 'like', "%{$search}%")
-                  ->orWhere('estado', 'like', "%{$search}%")
-                  ->orWhere('url', 'like', "%{$search}%")
-                  ->orWhere('observacion', 'like', "%{$search}%");
+                    ->orWhere('descripcion', 'like', "%{$search}%")
+                    ->orWhere('tipo_material', 'like', "%{$search}%")
+                    ->orWhere('formato', 'like', "%{$search}%")
+                    ->orWhere('alcance', 'like', "%{$search}%")
+                    ->orWhere('estado', 'like', "%{$search}%")
+                    ->orWhere('url', 'like', "%{$search}%")
+                    ->orWhere('observacion', 'like', "%{$search}%");
             });
         }
 
@@ -58,36 +58,63 @@ class TutorialController extends Controller
 
 
 
-
-
-
-
-
-
-
-
-
     public function store(Request $request): JsonResponse
     {
-        // Validación de los datos
-        $validated = $request->validate([
-            'titulo' => 'required|string|max:255',
-            'descripcion' => 'required|string',
-            'tipo_material' => 'required|string|max:100',
-            'formato' => 'required|string|max:50',
-            'alcance' => 'required|string|max:50',
-            'estado' => 'required|string|in:activo,inactivo',
-            'url' => 'nullable|url',
-            'observacion' => 'nullable|string',
-            'subcategoria_id' => 'required|exists:subcategorias,id',
-            'user_id' => 'nullable|exists:users,id',
-        ]);
+        try {
+            $validated = $request->validate([
+                'titulo' => 'required|string|max:100|unique:tutoriales,titulo',
+                'descripcion' => 'nullable|string',
+                'tipo_material' => 'required|in:video,manual,guia,post,triptico',
+                'formato' => 'required|in:pdf,word,mp4',
+                'alcance' => 'required|in:Superadministrador,Administrador,ClienteAdmin,ClienteSuscriptor,UsuarioPúblico,Prospecto',
+                'estado' => 'required|in:activo,inactivo',
+                'url' => 'nullable|url|max:500',
+                'observacion' => 'nullable|string',
+                'subcategoria_id' => 'nullable|exists:subcategorias,id',
+                'user_id' => 'nullable|exists:users,id',
+            ], [
+                'subcategoria_id.exists' => 'La subcategoría seleccionada no existe',
+                'alcance.in' => 'El valor de alcance no es válido',
+                'titulo.unique' => 'Ya existe un tutorial con este título',
+            ]);
 
-        // Crear el tutorial
-        $tutorial = Tutorial::create($validated);
+            // Convertir strings vacíos a null para foreign keys
+            if (empty($validated['subcategoria_id'])) {
+                $validated['subcategoria_id'] = null;
+            }
 
-        return response()->json(['data' => $tutorial], 201);
+
+
+            $tutorial = Tutorial::create($validated);
+
+            return response()->json([
+                'message' => 'Tutorial creado exitosamente',
+                'data' => $tutorial
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Error al crear tutorial: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Error interno del servidor',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Display the specified tutorial.
@@ -106,7 +133,7 @@ class TutorialController extends Controller
         return DB::transaction(function () use ($request, $id) {
             try {
                 $tutorial = Tutorial::find($id);
-                
+
                 if (!$tutorial) {
                     Log::error("Tutorial no encontrado para actualizar", ['id' => $id]);
                     return response()->json(['message' => 'Tutorial no encontrado'], 404);
@@ -126,9 +153,9 @@ class TutorialController extends Controller
                 ]);
 
                 $tutorial->update($validated);
-                
+
                 Log::info("Tutorial actualizado correctamente", ['id' => $tutorial->id]);
-                
+
                 return response()->json($tutorial);
 
             } catch (\Illuminate\Validation\ValidationException $e) {
@@ -136,7 +163,7 @@ class TutorialController extends Controller
                     'message' => 'Error de validación',
                     'errors' => $e->errors()
                 ], 422);
-                
+
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error("Error al actualizar tutorial", [
@@ -158,18 +185,18 @@ class TutorialController extends Controller
         return DB::transaction(function () use ($id) {
             try {
                 $tutorial = Tutorial::find($id);
-                
+
                 if (!$tutorial) {
                     Log::error("Tutorial no encontrado para eliminar", ['id' => $id]);
                     return response()->json(['message' => 'Tutorial no encontrado'], 404);
                 }
 
                 $tutorial->delete();
-                
+
                 Log::info("Tutorial eliminado correctamente", ['id' => $id]);
-                
+
                 return response()->json(null, 204);
-                
+
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error("Error al eliminar tutorial", [

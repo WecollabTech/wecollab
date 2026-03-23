@@ -4,224 +4,161 @@ import NavLink from "@/Components/NavLink.vue";
 
 <template>
     <div
-        class="container mx-auto px-4 sm:px-6 lg:px-12 py-8"
-        style="margin-top: 10px"
+        class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/40"
     >
-        <!-- Header -->
+        <!-- ✅ CONTENEDOR OPTIMIZADO -->
         <div
-            class="p-6 sm:p-8 bg-white border border-gray-300 rounded-lg shadow-lg"
+            class="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10"
         >
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">
-                ¡Bienvenido a su aplicación SistemaGT!
-            </h1>
-
-            <p class="mt-4 text-gray-600 leading-relaxed text-sm sm:text-base">
-                SistemaGT es una plataforma web interactiva, escalable y segura,
-                diseñada para optimizar el aprendizaje y la gestión de
-                contenido. Nuestro objetivo es ofrecer una experiencia intuitiva
-                donde los usuarios puedan acceder, explorar e interactuar con
-                tutoriales en diversos formatos, como videos, textos e imágenes.
-            </p>
-        </div>
-
-        <!-- Sections -->
-        <div
-            class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
-        >
-            <!-- Video de Capacitación Card -->
+            <!-- HEADER -->
             <div
-                class="bg-teal-100 p-3 sm:p-4 rounded-lg shadow-lg border border-gray-200 flex flex-col md:flex-row items-center transform transition duration-300 hover:scale-105 hover:shadow-xl"
+                class="relative overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-lg shadow-slate-200/50 p-6 sm:p-8"
             >
+                <!-- DECORACIÓN -->
                 <div
-                    class="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left"
-                >
-                    <h5
-                        class="text-lg sm:text-xl font-bold text-gray-900 uppercase tracking-wide"
-                    >
-                        Video de Capacitación
-                    </h5>
-                    <p class="mt-2 text-gray-700 text-xs sm:text-sm">
-                        Total Admin: 10<br />Noticias: 42
-                    </p>
-                    <button
-                        onclick="window.location.href='/tutoriales'"
-                        class="mt-4 bg-green-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-green-700 transition duration-300 text-sm sm:text-base flex items-center gap-2"
-                    >
-                        <i class="fas fa-play"></i> Ver más
-                    </button>
-                </div>
+                    class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-full opacity-50 blur-2xl"
+                ></div>
+                <div
+                    class="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-gradient-to-tr from-indigo-100 to-purple-100 rounded-full opacity-40 blur-2xl"
+                ></div>
 
-                <div
-                    class="w-full md:w-1/2 flex justify-center mt-3 sm:mt-4 md:mt-0"
-                >
-                    <img
-                        src="/img/logo.png"
-                        alt="Atrápalo"
-                        class="w-24 h-24 sm:w-32 sm:h-32 object-contain"
-                    />
-                </div>
-            </div>
-
-            <!-- Usuarios Card -->
-            <div
-                class="bg-teal-100 p-3 sm:p-4 rounded-lg shadow-lg border border-gray-200 flex flex-col md:flex-row items-center transform transition duration-300 hover:scale-105 hover:shadow-xl"
-            >
-                <div
-                    class="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left"
-                >
-                    <h2
-                        class="text-lg sm:text-xl font-bold text-gray-900 uppercase"
+                <div class="relative z-10">
+                    <h1
+                        class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight"
                     >
-                        Usuarios
-                    </h2>
-                    <p class="mt-2 text-gray-700 text-xs sm:text-sm">
-                        Semana<br />Mes
-                    </p>
-                    <button
-                        class="mt-3 sm:mt-4 bg-green-600 text-white font-semibold py-1 sm:py-2 px-3 sm:px-4 rounded-lg hover:bg-green-700 transition duration-300 text-xs sm:text-sm"
-                    >
-                        Ver más
-                    </button>
-                </div>
-                <div
-                    class="w-full md:w-1/2 flex justify-center mt-3 sm:mt-4 md:mt-0"
-                >
-                    <img
-                        src="/img/logo.png"
-                        alt="Atrápalo"
-                        class="w-24 h-24 sm:w-32 sm:h-32 object-contain"
-                    />
-                </div>
-            </div>
-
-            <!-- Usuarios en línea Card -->
-            <div
-                class="bg-teal-100 p-3 sm:p-4 rounded-lg shadow-lg border border-gray-200 flex flex-col md:flex-row items-center transform transition duration-300 hover:scale-105 hover:shadow-xl"
-            >
-                <div
-                    class="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left"
-                >
-                    <h2
-                        class="text-lg sm:text-xl font-bold text-gray-900 uppercase"
-                    >
-                        Usuarios en línea
-                    </h2>
-                    <p class="mt-2 text-gray-700 text-xs sm:text-sm">47</p>
-                    <button
-                        class="mt-3 sm:mt-4 bg-green-600 text-white font-semibold py-1 sm:py-2 px-3 sm:px-4 rounded-lg hover:bg-green-700 transition duration-300 text-xs sm:text-sm"
-                    >
-                        Ver más
-                    </button>
-                </div>
-                <div
-                    class="w-full md:w-1/2 flex justify-center mt-3 sm:mt-4 md:mt-0"
-                >
-                    <img
-                        src="/img/logo.png"
-                        alt="Atrápalo"
-                        class="w-24 h-24 sm:w-32 sm:h-32 object-contain"
-                    />
-                </div>
-            </div>
-
-            <!-- Actividades Recientes Card -->
-            <div
-                class="bg-teal-100 p-3 sm:p-4 rounded-lg shadow-lg border border-gray-200 md:col-span-2 lg:col-span-3 flex flex-col md:flex-row items-center transform transition duration-300 hover:scale-105 hover:shadow-xl"
-            >
-                <div
-                    class="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left"
-                >
-                    <h2
-                        class="text-lg sm:text-xl font-bold text-gray-900 uppercase"
-                    >
-                        Actividades Recientes
-                    </h2>
-                    <div class="mt-2 w-full">
-                        <div
-                            v-for="(activity, index) in [
-                                'Farhan A Mujib',
-                                'Ujang Maman',
-                                'Rizal Fakhri',
-                                'Alfa Zulkarnain',
-                            ]"
-                            :key="index"
-                            class="text-gray-700 text-xs sm:text-sm"
+                        ¡Bienvenido a su aplicación
+                        <span
+                            class="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-600"
                         >
-                            <p class="font-medium">{{ activity }}</p>
-                            <p class="text-xs">
-                                Cras sit amet nibh libero, in gravida nulla.
-                                Nulla vel metus scelerisque ante sollicitudin.
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        class="mt-3 sm:mt-4 bg-green-600 text-white font-semibold py-1 sm:py-2 px-3 sm:px-4 rounded-lg hover:bg-green-700 transition duration-300 text-xs sm:text-sm"
+                            SistemaGT </span
+                        >!
+                    </h1>
+
+                    <p
+                        class="mt-4 text-slate-600 text-sm sm:text-base max-w-3xl leading-relaxed"
                     >
-                        Ver más
-                    </button>
-                </div>
-                <div
-                    class="w-full md:w-1/2 flex justify-center mt-3 sm:mt-4 md:mt-0"
-                >
-                    <img
-                        src="https://via.placeholder.com/150x150.png?text=Actividades"
-                        alt="Actividades Icon"
-                        class="w-24 h-24 sm:w-32 sm:h-32 object-contain"
-                    />
+                        SistemaGT es una plataforma web interactiva, escalable y
+                        segura, diseñada para optimizar el aprendizaje y la
+                        gestión de contenido.
+                    </p>
                 </div>
             </div>
 
-            <!-- Documentación Card -->
+            <!-- GRID -->
             <div
-                class="bg-teal-100 p-3 sm:p-4 rounded-lg shadow-lg border border-gray-200 flex flex-col md:flex-row items-center transform transition duration-300 hover:scale-105 hover:shadow-xl"
+                class="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
             >
+                <!-- CARD -->
                 <div
-                    class="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left"
+                    class="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                 >
-                    <h2
-                        class="text-lg sm:text-xl font-bold text-gray-900 uppercase"
-                    >
-                        Documentación
-                    </h2>
-                    <p class="mt-2 text-gray-700 text-xs sm:text-sm">
-                        Laravel tiene una documentación increíble que cubre
-                        todos los aspectos del framework.
-                    </p>
-                    <p class="mt-2 text-xs sm:text-sm">
-                        <a
-                            href="https://laravel.com/docs"
-                            class="inline-flex items-center font-semibold text-indigo-700"
-                        >
-                            Explorar la documentación
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 20 20"
-                                class="ml-1 w-4 h-4 sm:w-5 sm:h-5 fill-indigo-500"
+                    <div
+                        class="h-1 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-t-2xl"
+                    ></div>
+
+                    <div class="p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-9 h-9 bg-teal-100 text-teal-600 flex items-center justify-center rounded-lg"
                             >
-                                <path
-                                    fill-rule="evenodd"
-                                    d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z"
-                                    clip-rule="evenodd"
-                                />
-                            </svg>
-                        </a>
-                    </p>
-                    <button
-                        class="mt-3 sm:mt-4 bg-green-600 text-white font-semibold py-1 sm:py-2 px-3 sm:px-4 rounded-lg hover:bg-green-700 transition duration-300 text-xs sm:text-sm"
-                    >
-                        Ver más
-                    </button>
+                                <i class="fas fa-play"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900">
+                                Video de Capacitación
+                            </h3>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-50 p-3 rounded-lg text-center">
+                                <p class="text-xs text-slate-500">Total</p>
+                                <p class="font-bold text-lg">10</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-lg text-center">
+                                <p class="text-xs text-slate-500">Noticias</p>
+                                <p class="font-bold text-lg">42</p>
+                            </div>
+                        </div>
+
+                        <button
+                            class="mt-2 bg-gradient-to-r from-teal-600 to-emerald-600 text-white py-2 rounded-xl font-semibold hover:scale-105 transition"
+                        >
+                            Ver más
+                        </button>
+                    </div>
                 </div>
+
+                <!-- USUARIOS -->
                 <div
-                    class="w-full md:w-1/2 flex justify-center mt-3 sm:mt-4 md:mt-0"
+                    class="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                 >
-                    <img
-                        src="https://via.placeholder.com/150x150.png?text=Documentación"
-                        alt="Documentación Icon"
-                        class="w-24 h-24 sm:w-32 sm:h-32 object-contain"
-                    />
+                    <div
+                        class="h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-t-2xl"
+                    ></div>
+
+                    <div class="p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-9 h-9 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-lg"
+                            >
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900">Usuarios</h3>
+                        </div>
+
+                        <button
+                            class="mt-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 rounded-xl font-semibold hover:scale-105 transition"
+                        >
+                            Ver más
+                        </button>
+                    </div>
                 </div>
+
+                <!-- ONLINE -->
+                <div
+                    class="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                >
+                    <div
+                        class="h-1 bg-gradient-to-r from-green-500 to-emerald-500 rounded-t-2xl"
+                    ></div>
+
+                    <div class="p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-9 h-9 bg-green-100 text-green-600 flex items-center justify-center rounded-lg"
+                            >
+                                <i class="fas fa-wifi"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-900">
+                                Usuarios en línea
+                            </h3>
+                        </div>
+
+                        <p class="text-3xl font-extrabold text-slate-900">47</p>
+
+                        <button
+                            class="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2 rounded-xl font-semibold hover:scale-105 transition"
+                        >
+                            Ver más
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="mt-12 pt-6 border-t border-slate-200 text-center">
+                <p class="text-xs text-slate-400">
+                    SistemaGT • Plataforma de Capacitación Digital
+                </p>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>

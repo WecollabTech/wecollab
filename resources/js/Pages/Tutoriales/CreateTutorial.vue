@@ -4,17 +4,23 @@ import { router, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
 const page = usePage();
+
+// ✅ Formulario con valores corregidos según tu BD
+// ⚠️ user_id: dejado pendiente (en $fillable pero no se envía aún)
 const form = ref({
     titulo: "",
     descripcion: "",
     tipo_material: "video",
     formato: "mp4",
-    alcance: "soporte",
+    // ✅ Valores actualizados según tu enum 'alcance' en la BD
+    alcance: "Superadministrador",
     estado: "activo",
     url: "",
     observacion: "",
-    subcategoria_id: "",
-    user_id: page.props.auth.user?.id || "", // Manejo seguro del user id
+    // ✅ null para foreign key (no string vacío)
+    subcategoria_id: null,
+    // ⏳ user_id: pendiente - está en $fillable pero no se envía aún
+    // user_id: page.props.auth.user?.id ?? null,
 });
 
 const subcategorias = ref([]);
@@ -25,10 +31,10 @@ const apiError = ref(null);
 const fetchSubcategorias = async () => {
     try {
         loading.value = true;
+        // ✅ Ruta con prefijo /api/
         const response = await axios.get("/subcategorias");
 
-        // Validación y filtrado de subcategorías
-        subcategorias.value = (response.data?.data || [])
+        subcategorias.value = (response.data?.data || response.data || [])
             .filter((sub) => sub?.id && sub?.nombre)
             .map((sub) => ({
                 id: sub.id,
@@ -48,8 +54,37 @@ const submit = async () => {
     loading.value = true;
 
     try {
-        const response = await axios.post("/tutoriales", form.value);
-        console.log("Respuesta del servidor:", response.data); // Ahora sí se usa `response`
+        // 🔍 Validación frontend: subcategoría requerida
+        if (!form.value.subcategoria_id) {
+            formErrors.value.subcategoria_id = [
+                "Debe seleccionar una subcategoría",
+            ];
+            loading.value = false;
+            return;
+        }
+
+        // ✅ Preparar payload (user_id pendiente - no se incluye aún)
+        const payload = {
+            titulo: form.value.titulo.trim(),
+            descripcion: form.value.descripcion,
+            tipo_material: form.value.tipo_material,
+            formato: form.value.formato,
+            alcance: form.value.alcance,
+            estado: form.value.estado,
+            url: form.value.url || null,
+            observacion: form.value.observacion || null,
+            subcategoria_id: form.value.subcategoria_id || null,
+            // ⏳ user_id: pendiente - se puede agregar después cuando se requiera
+            // user_id: form.value.user_id || null,
+        };
+
+        console.log("📤 Enviando:", payload);
+
+        // ✅ POST con prefijo /api/
+        const response = await axios.post("/tutoriales", payload);
+
+        console.log("✅ Respuesta:", response.data);
+
         router.visit(route("tutoriales"), {
             preserveState: false,
             preserveScroll: true,
@@ -57,9 +92,13 @@ const submit = async () => {
     } catch (error) {
         if (error.response?.status === 422) {
             formErrors.value = error.response.data.errors || {};
+        } else if (error.response?.status === 500) {
+            apiError.value =
+                error.response.data.message || "Error interno del servidor";
+            console.error("❌ Error 500:", error.response.data);
         } else {
             apiError.value = "Error al guardar el tutorial";
-            console.error("Error:", error);
+            console.error("❌ Error:", error);
         }
     } finally {
         loading.value = false;
@@ -87,7 +126,6 @@ onMounted(() => {
                     Crear Nuevo Tutorial
                 </h3>
 
-                <!-- Mensajes de error -->
                 <div
                     v-if="apiError"
                     class="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700"
@@ -99,6 +137,7 @@ onMounted(() => {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Columna 1 -->
                         <div class="space-y-4">
+                            <!-- Título -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -107,11 +146,12 @@ onMounted(() => {
                                 <input
                                     v-model="form.titulo"
                                     type="text"
+                                    maxlength="100"
+                                    required
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     :class="{
                                         'border-red-500': formErrors.titulo,
                                     }"
-                                    required
                                 />
                                 <span
                                     v-if="formErrors.titulo"
@@ -121,6 +161,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
+                            <!-- Descripción -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -128,13 +169,13 @@ onMounted(() => {
                                 >
                                 <textarea
                                     v-model="form.descripcion"
+                                    rows="3"
+                                    required
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     :class="{
                                         'border-red-500':
                                             formErrors.descripcion,
                                     }"
-                                    rows="3"
-                                    required
                                 ></textarea>
                                 <span
                                     v-if="formErrors.descripcion"
@@ -144,6 +185,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
+                            <!-- Tipo de Material -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -151,12 +193,12 @@ onMounted(() => {
                                 >
                                 <select
                                     v-model="form.tipo_material"
+                                    required
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     :class="{
                                         'border-red-500':
                                             formErrors.tipo_material,
                                     }"
-                                    required
                                 >
                                     <option value="video">Video</option>
                                     <option value="manual">Manual</option>
@@ -175,6 +217,7 @@ onMounted(() => {
 
                         <!-- Columna 2 -->
                         <div class="space-y-4">
+                            <!-- Formato -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -182,11 +225,11 @@ onMounted(() => {
                                 >
                                 <select
                                     v-model="form.formato"
+                                    required
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     :class="{
                                         'border-red-500': formErrors.formato,
                                     }"
-                                    required
                                 >
                                     <option value="mp4">MP4</option>
                                     <option value="pdf">PDF</option>
@@ -200,6 +243,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
+                            <!-- ✅ Alcance con valores de tu BD -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -207,17 +251,28 @@ onMounted(() => {
                                 >
                                 <select
                                     v-model="form.alcance"
+                                    required
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     :class="{
                                         'border-red-500': formErrors.alcance,
                                     }"
-                                    required
                                 >
-                                    <option value="soporte">Soporte</option>
-                                    <option value="admin">Administrador</option>
-                                    <option value="clientefinal">
-                                        Cliente Final
+                                    <option value="Superadministrador">
+                                        Superadministrador
                                     </option>
+                                    <option value="Administrador">
+                                        Administrador
+                                    </option>
+                                    <option value="ClienteAdmin">
+                                        Cliente Admin
+                                    </option>
+                                    <option value="ClienteSuscriptor">
+                                        Cliente Suscriptor
+                                    </option>
+                                    <option value="UsuarioPúblico">
+                                        Usuario Público
+                                    </option>
+                                    <option value="Prospecto">Prospecto</option>
                                 </select>
                                 <span
                                     v-if="formErrors.alcance"
@@ -227,6 +282,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
+                            <!-- Subcategoría -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -234,16 +290,20 @@ onMounted(() => {
                                 >
                                 <select
                                     v-model="form.subcategoria_id"
+                                    required
+                                    :disabled="loading"
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     :class="{
                                         'border-red-500':
                                             formErrors.subcategoria_id,
                                     }"
-                                    required
-                                    :disabled="loading"
                                 >
-                                    <option value="">
-                                        Seleccione una subcategoría
+                                    <option :value="null" disabled>
+                                        {{
+                                            loading
+                                                ? "Cargando..."
+                                                : "Seleccione una subcategoría"
+                                        }}
                                     </option>
                                     <option
                                         v-for="subcategoria in subcategorias"
@@ -254,12 +314,6 @@ onMounted(() => {
                                     </option>
                                 </select>
                                 <span
-                                    v-if="loading"
-                                    class="text-sm text-gray-500"
-                                >
-                                    Cargando subcategorías...
-                                </span>
-                                <span
                                     v-if="formErrors.subcategoria_id"
                                     class="text-sm text-red-600"
                                 >
@@ -269,6 +323,7 @@ onMounted(() => {
                         </div>
                     </div>
 
+                    <!-- URL y Estado -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label
@@ -279,9 +334,7 @@ onMounted(() => {
                                 v-model="form.url"
                                 type="url"
                                 class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                :class="{
-                                    'border-red-500': formErrors.url,
-                                }"
+                                :class="{ 'border-red-500': formErrors.url }"
                                 placeholder="https://ejemplo.com"
                             />
                             <span
@@ -299,11 +352,9 @@ onMounted(() => {
                             >
                             <select
                                 v-model="form.estado"
-                                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                :class="{
-                                    'border-red-500': formErrors.estado,
-                                }"
                                 required
+                                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                :class="{ 'border-red-500': formErrors.estado }"
                             >
                                 <option value="activo">Activo</option>
                                 <option value="inactivo">Inactivo</option>
@@ -317,17 +368,18 @@ onMounted(() => {
                         </div>
                     </div>
 
+                    <!-- Observación -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700"
                             >Observación</label
                         >
                         <textarea
                             v-model="form.observacion"
+                            rows="2"
                             class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                             :class="{
                                 'border-red-500': formErrors.observacion,
                             }"
-                            rows="2"
                         ></textarea>
                         <span
                             v-if="formErrors.observacion"
@@ -337,6 +389,7 @@ onMounted(() => {
                         </span>
                     </div>
 
+                    <!-- Botones -->
                     <div class="flex justify-end space-x-3">
                         <button
                             type="button"

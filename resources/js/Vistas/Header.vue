@@ -40,7 +40,9 @@ const toggleMenu = () => {
             <a href="/">
                 <div class="logo-container">
                     <img src="/img/logo.png" alt="Atrápalo" class="logo" />
-                    <div class="logo-text">SISTEMAGT</div>
+                    <div class="logo-text">
+                        SynergyFlow Support & Learning Center
+                    </div>
                 </div>
             </a>
 

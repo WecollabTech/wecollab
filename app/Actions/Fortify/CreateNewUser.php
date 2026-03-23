@@ -19,79 +19,218 @@ class CreateNewUser implements CreatesNewUsers
 {
     use PasswordValidationRules;
 
+
     /**
-     * Validate and create a newly registered user.
-     *
-     * @param  array<string, string>  $input
+     * Validar y crear un nuevo usuario.
      */
+    // public function create(array $input): User
+    // {
+    //     // Validación consistente con el frontend
+    //     Validator::make($input, [
+    //         // Requeridos
+    //         'name' => ['required', 'string', 'max:255'],
+    //         'apellido' => ['required', 'string', 'max:255'],
+    //         'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+    //         'password' => $this->passwordRules(),
 
-     public function create(array $input): User
-     {
-        
- 
-         Validator::make($input, [
-             'name' => ['required', 'string', 'max:255'],
-             'apellido' => ['required', 'string', 'max:255'],
-             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-             'password' => $this->passwordRules(),
-             'status' => ['required', 'in:activo,inactivo'],
-             'direccion' => ['nullable', 'string', 'max:255'],
-             'fotoperfil' => ['nullable', 'file', 'image', 'max:10240'],
-             'telefono' => ['nullable', 'string', 'max:15'],
-             'country_code' => ['required', 'string', 'max:10'],
-             'country_name' => ['required', 'string', 'max:255'],
-             'state' => ['required', 'string', 'max:255'],
-             'city' => ['required', 'string', 'max:255'],
-             'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : '',
-         ])->validateWithBag('default');
- 
-         $pais = Pais::firstOrCreate(
-             ['codigo' => $input['country_code']],
-             ['nombre' => $input['country_name']]
-         );
-         
- 
-         $estado = Estado::firstOrCreate(
-             ['nombre' => $input['state'], 'pais_id' => $pais->id]
-         );
-      
- 
-         $ciudad = Ciudad::firstOrCreate(
-             ['nombre' => $input['city'], 'estado_id' => $estado->id]
-         );
-         
-         $fotoPath = null;
-         if (isset($input['fotoperfil']) && $input['fotoperfil']) {
-             $fotoPath = $input['fotoperfil']->store('profile-photos', 'public');
-             
-         }
- 
-         $role = Role::firstOrCreate(['nombre' => 'usuario']);
-         
- 
-         $user = User::create([
-             'name' => $input['name'],
-             'apellido' => $input['apellido'],
-             'email' => $input['email'],
-             'password' => Hash::make($input['password']),
-             'status' => $input['status'],
-             'direccion' => $input['direccion'] ?? null,
-             'fotoperfil' => $fotoPath,
-             'telefono' => $input['telefono'] ?? null,
-             'pais_id' => $pais->id,
-             'role_id' => $role->id,
-         ]);
-        
- 
-         return $user;
-     }
+    //         // Ubicación (requeridos)
+    //         'country_code' => ['nullable', 'string', 'max:10'],
+    //         'country_name' => ['nullable', 'string', 'max:255'],
+    //         'state' => ['nullable', 'string', 'max:255'],
+    //         'city' => ['nullable', 'string', 'max:255'],
+
+    //         // Opcionales (nullable)
+    //         'status' => ['nullable', 'in:activo,inactivo'], // Default: activo
+    //         'direccion' => ['nullable', 'string', 'max:255'],
+    //         'fotoperfil' => ['nullable', 'file', 'image', 'mimes:jpeg,png,gif', 'max:2048'], // 2MB
+    //         'telefono' => ['nullable', 'string', 'max:15'],
+
+    //         // Términos (condicional)
+    //         'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : 'nullable',
+    //     ], [
+    //         // Mensajes personalizados
+    //         'name.required' => 'El nombre es requerido',
+    //         'apellido.required' => 'El apellido es requerido',
+    //         'email.required' => 'El correo es requerido',
+    //         'email.unique' => 'Este correo ya está registrado',
+    //         'password.required' => 'La contraseña es requerida',
+    //         'country_code.required' => 'El país es requerido',
+    //         'state.required' => 'El estado es requerido',
+    //         'city.required' => 'La ciudad es requerida',
+    //         'terms.accepted' => 'Debes aceptar los términos y condiciones',
+    //         'fotoperfil.image' => 'El archivo debe ser una imagen',
+    //         'fotoperfil.mimes' => 'Formatos permitidos: JPEG, PNG, GIF',
+    //         'fotoperfil.max' => 'La imagen no debe superar los 2MB',
+    //     ])->validateWithBag('default');
+
+    //     // ====================================================================
+    //     // GESTIÓN DE UBICACIÓN (País → Estado → Ciudad)
+    //     // ====================================================================
+
+    //     $pais = Pais::firstOrCreate(
+    //         ['codigo' => $input['country_code']],
+    //         ['nombre' => $input['country_name']]
+    //     );
+
+    //     $estado = Estado::firstOrCreate(
+    //         ['nombre' => $input['state'], 'pais_id' => $pais->id],
+    //         ['pais_id' => $pais->id] // Evita duplicados
+    //     );
+
+    //     $ciudad = Ciudad::firstOrCreate(
+    //         ['nombre' => $input['city'], 'estado_id' => $estado->id],
+    //         ['estado_id' => $estado->id] // Evita duplicados
+    //     );
+
+    //     // ====================================================================
+    //     // SUBIDA DE FOTO DE PERFIL
+    //     // ====================================================================
+
+    //     $fotoPath = null;
+    //     if (isset($input['fotoperfil']) && $input['fotoperfil'] instanceof \Illuminate\Http\UploadedFile) {
+    //         $fotoPath = $input['fotoperfil']->store('profile-photos', 'public');
+    //     }
+
+    //     // ====================================================================
+    //     // ROL POR DEFECTO
+    //     // ====================================================================
+
+    //     $role = Role::firstOrCreate(
+    //         ['nombre' => 'usuario'],
+    //         ['descripcion' => 'Usuario estándar del sistema']
+    //     );
+
+    //     // ====================================================================
+    //     // CREACIÓN DEL USUARIO
+    //     // ====================================================================
+
+    //     $user = User::create([
+    //         'name' => $input['name'],
+    //         'apellido' => $input['apellido'],
+    //         'email' => $input['email'],
+    //         'password' => Hash::make($input['password']),
+    //         'status' => $input['status'] ?? 'activo', // Default: activo
+    //         'direccion' => $input['direccion'] ?? null,
+    //         'fotoperfil' => $fotoPath,
+    //         'telefono' => $input['telefono'] ?? null,
+    //         'pais_id' => $pais->id,
+    //         'estado_id' => $estado->id, // ✅ Guardar estado
+    //         'ciudad_id' => $ciudad->id, // ✅ Guardar ciudad
+    //         'role_id' => $role->id,     // ✅ Guardar rol
+    //     ]);
+
+    //     return $user;
+    // }
 
 
 
 
+    public function create(array $input): User
+    {
+        // Validación: solo country_code es requerido (si se envía ubicación)
+        Validator::make($input, [
+            // Requeridos
+            'name' => ['required', 'string', 'max:255'],
+            'apellido' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => $this->passwordRules(),
 
+            // Ubicación: country_code requerido, resto nullable
+            'country_code' => ['required', 'string', 'max:10'],
+            'country_name' => ['nullable', 'string', 'max:255'],
+            'state' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
 
+            // Opcionales
+            'status' => ['nullable', 'in:activo,inactivo'],
+            'direccion' => ['nullable', 'string', 'max:255'],
+            'fotoperfil' => ['nullable', 'file', 'image', 'mimes:jpeg,png,gif', 'max:2048'],
+            'telefono' => ['nullable', 'string', 'max:15'],
 
+            // Términos
+            'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : 'nullable',
+        ], [
+            'name.required' => 'El nombre es requerido',
+            'apellido.required' => 'El apellido es requerido',
+            'email.required' => 'El correo es requerido',
+            'email.unique' => 'Este correo ya está registrado',
+            'password.required' => 'La contraseña es requerida',
+            'country_code.required' => 'El país es requerido',
+            'terms.accepted' => 'Debes aceptar los términos y condiciones',
+            'fotoperfil.image' => 'El archivo debe ser una imagen',
+            'fotoperfil.mimes' => 'Formatos permitidos: JPEG, PNG, GIF',
+            'fotoperfil.max' => 'La imagen no debe superar los 2MB',
+        ])->validateWithBag('default');
+
+        // ====================================================================
+        // GESTIÓN DE UBICACIÓN (Solo país es obligatorio)
+        // ====================================================================
+
+        // 1. País (SIEMPRE requerido)
+        $pais = Pais::firstOrCreate(
+            ['codigo' => $input['country_code']],
+            ['nombre' => $input['country_name'] ?? $input['country_code']]
+        );
+
+        // 2. Estado (OPCIONAL - solo si se envió y no está vacío)
+        $estado_id = null;
+        if (!empty($input['state']) && !empty($input['country_name'])) {
+            $estado = Estado::firstOrCreate(
+                ['nombre' => $input['state'], 'pais_id' => $pais->id],
+                ['pais_id' => $pais->id]
+            );
+            $estado_id = $estado->id;
+        }
+
+        // 3. Ciudad (OPCIONAL - solo si se envió estado y ciudad)
+        $ciudad_id = null;
+        if (!empty($input['city']) && $estado_id) {
+            $ciudad = Ciudad::firstOrCreate(
+                ['nombre' => $input['city'], 'estado_id' => $estado_id],
+                ['estado_id' => $estado_id]
+            );
+            $ciudad_id = $ciudad->id;
+        }
+
+        // ====================================================================
+        // SUBIDA DE FOTO DE PERFIL
+        // ====================================================================
+
+        $fotoPath = null;
+        if (isset($input['fotoperfil']) && $input['fotoperfil'] instanceof \Illuminate\Http\UploadedFile) {
+            $fotoPath = $input['fotoperfil']->store('profile-photos', 'public');
+        }
+
+        // ====================================================================
+        // ROL POR DEFECTO
+        // ====================================================================
+
+        $role = Role::firstOrCreate(
+            ['nombre' => 'usuario'],
+            ['descripcion' => 'Usuario estándar del sistema']
+        );
+
+        // ====================================================================
+        // CREACIÓN DEL USUARIO
+        // ====================================================================
+
+        $user = User::create([
+            'name' => $input['name'],
+            'apellido' => $input['apellido'],
+            'email' => $input['email'],
+            'password' => Hash::make($input['password']),
+            'status' => $input['status'] ?? 'activo',
+            'direccion' => $input['direccion'] ?? null,
+            'fotoperfil' => $fotoPath,
+            'telefono' => $input['telefono'] ?? null,
+            'pais_id' => $pais->id,
+            'estado_id' => $estado_id,  // ✅ Puede ser null
+            'ciudad_id' => $ciudad_id,  // ✅ Puede ser null
+            'role_id' => $role->id,
+        ]);
+
+        return $user;
+    }
 
 
 

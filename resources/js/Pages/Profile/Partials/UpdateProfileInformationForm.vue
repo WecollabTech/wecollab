@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { Link, router, useForm } from "@inertiajs/vue3";
 import ActionMessage from "@/Components/ActionMessage.vue";
 import FormSection from "@/Components/FormSection.vue";
@@ -9,15 +9,39 @@ import PrimaryButton from "@/Components/PrimaryButton.vue";
 import SecondaryButton from "@/Components/SecondaryButton.vue";
 import TextInput from "@/Components/TextInput.vue";
 
+// ✅ 1. Agregar default a la prop user
 const props = defineProps({
-    user: Object,
+    user: {
+        type: Object,
+        default: () => ({
+            name: "",
+            apellido: "",
+            email: "",
+            profile_photo_path: null,
+            profile_photo_url: null,
+            email_verified_at: null,
+        }),
+    },
 });
+
+// ✅ 2. Computada para acceso seguro a los datos del usuario
+const userData = computed(
+    () =>
+        props.user || {
+            name: "",
+            apellido: "",
+            email: "",
+            profile_photo_path: null,
+            profile_photo_url: null,
+        },
+);
 
 const form = useForm({
     _method: "PUT",
-    name: props.user.name,
-    apellido: props.user.apellido,
-    email: props.user.email,
+    // ✅ 3. Usar optional chaining o la computada
+    name: userData.value.name ?? "",
+    apellido: userData.value.apellido ?? "",
+    email: userData.value.email ?? "",
     photo: null,
 });
 
@@ -88,7 +112,7 @@ const clearPhotoFileInput = () => {
         <template #form>
             <!-- Profile Photo -->
             <div
-                v-if="$page.props.jetstream.managesProfilePhotos"
+                v-if="$page.props?.jetstream?.managesProfilePhotos"
                 class="col-span-6 sm:col-span-4"
             >
                 <!-- Profile Photo File Input -->
@@ -105,8 +129,8 @@ const clearPhotoFileInput = () => {
                 <!-- Current Profile Photo -->
                 <div v-show="!photoPreview" class="mt-2">
                     <img
-                        :src="user.profile_photo_url"
-                        :alt="user.name"
+                        :src="userData.profile_photo_url"
+                        :alt="userData.name"
                         class="rounded-full size-20 object-cover"
                     />
                 </div>
@@ -130,7 +154,7 @@ const clearPhotoFileInput = () => {
                 </SecondaryButton>
 
                 <SecondaryButton
-                    v-if="user.profile_photo_path"
+                    v-if="userData.profile_photo_path"
                     type="button"
                     class="mt-2"
                     @click.prevent="deletePhoto"
@@ -183,8 +207,8 @@ const clearPhotoFileInput = () => {
 
                 <div
                     v-if="
-                        $page.props.jetstream.hasEmailVerification &&
-                        user.email_verified_at === null
+                        $page.props?.jetstream?.hasEmailVerification &&
+                        userData.email_verified_at === null
                     "
                 >
                     <p class="text-sm mt-2">

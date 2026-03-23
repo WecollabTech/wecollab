@@ -59,7 +59,7 @@ const blockAllUnwantedActions = (e) => {
 
     if (key && blockedCombinations[key]) {
         const allModifiersPressed = blockedCombinations[key].every(
-            (mod) => e[`${mod.toLowerCase()}Key`],
+            (mod) => e[`${mod.toLowerCase()}Key`]
         );
         if (allModifiersPressed) {
             e.preventDefault();
@@ -261,7 +261,7 @@ const saveTutorial = async () => {
 
         await axios.put(
             `/tutoriales/${currentTutorial.value.id}`,
-            editForm.value,
+            editForm.value
         );
         await fetchTutoriales();
 
@@ -601,7 +601,7 @@ const setupVideoEndDetection = (iframe) => {
     } catch (error) {
         console.error(
             "Error al configurar la detección de fin de video:",
-            error,
+            error
         );
         setTimeout(() => setupVideoEndDetection(iframe), 500);
     }
@@ -639,7 +639,7 @@ const setupModalProtection = () => {
             videoContainer.addEventListener(
                 event,
                 blockAllUnwantedActions,
-                true,
+                true
             );
         });
 
@@ -674,7 +674,7 @@ const setupModalProtection = () => {
                         youtubeContainer.addEventListener(
                             event,
                             blockYouTubeInspection,
-                            { capture: true, passive: false },
+                            { capture: true, passive: false }
                         );
                         iframe.addEventListener(event, blockYouTubeInspection, {
                             capture: true,
@@ -684,7 +684,7 @@ const setupModalProtection = () => {
 
                     iframe.setAttribute(
                         "sandbox",
-                        "allow-same-origin allow-scripts",
+                        "allow-same-origin allow-scripts"
                     );
                     iframe.setAttribute("disablepictureinpicture", "true");
                     iframe.style.pointerEvents = "none";
@@ -698,7 +698,7 @@ const setupModalProtection = () => {
                                 iframeDoc.addEventListener(
                                     event,
                                     blockYouTubeInspection,
-                                    { capture: true, passive: false },
+                                    { capture: true, passive: false }
                                 );
                             });
                             iframeDoc.body.style.userSelect = "none";
@@ -715,7 +715,7 @@ const setupModalProtection = () => {
 
                     const protectionInterval = setInterval(
                         tryBlockIframeEvents,
-                        1000,
+                        1000
                     );
                     watch(showModal, (val) => {
                         if (!val) clearInterval(protectionInterval);
@@ -740,7 +740,7 @@ const setupModalProtection = () => {
                         loomContainer.addEventListener(
                             event,
                             blockLoomInspection,
-                            { capture: true, passive: false },
+                            { capture: true, passive: false }
                         );
                     });
 
@@ -753,7 +753,7 @@ const setupModalProtection = () => {
                             iframeDoc.addEventListener(
                                 "contextmenu",
                                 blockRightClick,
-                                { capture: true, passive: false },
+                                { capture: true, passive: false }
                             );
                         } catch {
                             setTimeout(tryBlockIframeRightClick, 500);
@@ -767,7 +767,7 @@ const setupModalProtection = () => {
 
                     const protectionInterval = setInterval(
                         tryBlockIframeRightClick,
-                        1000,
+                        1000
                     );
                     watch(showModal, (val) => {
                         if (!val) clearInterval(protectionInterval);
@@ -777,24 +777,24 @@ const setupModalProtection = () => {
 
             case "Vimeo":
                 iframe = videoContainer.querySelector(
-                    ".vimeo-container iframe",
+                    ".vimeo-container iframe"
                 );
                 if (iframe) {
                     iframe.addEventListener("contextmenu", blockRightClick);
                     iframe.addEventListener("load", () =>
-                        handleVideoLoad(iframe),
+                        handleVideoLoad(iframe)
                     );
                 }
                 break;
 
             case "Dailymotion":
                 iframe = videoContainer.querySelector(
-                    ".dailymotion-container iframe",
+                    ".dailymotion-container iframe"
                 );
                 if (iframe) {
                     iframe.addEventListener("contextmenu", blockRightClick);
                     iframe.addEventListener("load", () =>
-                        handleVideoLoad(iframe),
+                        handleVideoLoad(iframe)
                     );
                 }
                 break;
@@ -859,7 +859,7 @@ const cleanupModalProtection = () => {
             videoContainer.removeEventListener(
                 event,
                 blockAllUnwantedActions,
-                true,
+                true
             );
         });
 
@@ -870,7 +870,7 @@ const cleanupModalProtection = () => {
                 youtubeContainer.removeEventListener(
                     event,
                     blockYouTubeInspection,
-                    true,
+                    true
                 );
             });
         }
@@ -881,7 +881,7 @@ const cleanupModalProtection = () => {
                 loomContainer.removeEventListener(
                     event,
                     blockLoomInspection,
-                    true,
+                    true
                 );
             });
         }
@@ -930,7 +930,7 @@ const adjustIframeHeight = (iframe) => {
         const checkHeight = () => {
             const contentHeight = Math.max(
                 iframe.contentWindow.document.body.scrollHeight,
-                iframe.contentWindow.document.documentElement.scrollHeight,
+                iframe.contentWindow.document.documentElement.scrollHeight
             );
             if (contentHeight > 0) {
                 iframeHeight.value = `${contentHeight}px`;
@@ -979,7 +979,7 @@ const viewTutorial = async (id) => {
         if (
             selectedContentInfo.value.type === "document" &&
             supportedPreviewTypes.includes(
-                selectedContentInfo.value.fileExtension,
+                selectedContentInfo.value.fileExtension
             )
         ) {
             await loadDocumentContent(tutorial.url);
@@ -998,7 +998,7 @@ const viewTutorial = async (id) => {
             window.open(
                 selectedContentInfo.value.directUrl,
                 "_blank",
-                "noopener,noreferrer",
+                "noopener,noreferrer"
             );
             return;
         }
@@ -1754,7 +1754,7 @@ const editTutorial = (id) => {
                             v-if="
                                 selectedContentInfo?.type === 'document' &&
                                 !supportedPreviewTypes.includes(
-                                    selectedContentInfo?.fileExtension,
+                                    selectedContentInfo?.fileExtension
                                 ) &&
                                 !isGoogleDoc(selectedContentInfo?.originalUrl)
                             "
@@ -1948,22 +1948,11 @@ const editTutorial = (id) => {
                                 class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 required
                             >
-                                <option value="Superadministrador">
-                                    Superadministrador
+                                <option value="soporte">Soporte</option>
+                                <option value="admin">Admin</option>
+                                <option value="clientefinal">
+                                    Cliente Final
                                 </option>
-                                <option value="Administrador">
-                                    Administrador
-                                </option>
-                                <option value="ClienteAdmin">
-                                    Cliente Admin
-                                </option>
-                                <option value="ClienteSuscriptor">
-                                    Cliente Suscriptor
-                                </option>
-                                <option value="UsuarioPúblico">
-                                    Usuario Público
-                                </option>
-                                <option value="Prospecto">Prospecto</option>
                             </select>
                         </div>
                         <div>

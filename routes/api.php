@@ -7,7 +7,7 @@ use App\Http\Controllers\PermisoController; // Importa el controlador correcto
 use App\Http\Controllers\CategoriaController; // Importa el controlador correcto
 use App\Http\Controllers\SubcategoriaController; // Importa el controlador correcto
 use App\Http\Controllers\TutorialController; // Importa el controlador correcto
-
+use App\Models\User;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -22,3 +22,6 @@ Route::apiResource('categorias', CategoriaController::class);
 Route::apiResource('subcategorias', SubcategoriaController::class);
 
 Route::apiResource('tutoriales', TutorialController::class);
+Route::get('/usuarios', function () {
+    return User::all();
+});
