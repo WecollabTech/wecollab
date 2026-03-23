@@ -1,9 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Link } from "@inertiajs/vue3";
+import { Link, router, usePage } from "@inertiajs/vue3"; // ✅ Agregado usePage
 import axios from "axios";
-import { router } from "@inertiajs/vue3";
 import Swal from "sweetalert2";
 
 defineProps({
@@ -14,6 +13,31 @@ defineProps({
         type: Array,
         default: () => [],
     },
+});
+
+// ✅ Obtener instancia de página para acceder al usuario autenticado
+const page = usePage();
+
+// ✅ Computed para obtener el rol del usuario actual
+const userRole = computed(() => {
+    return (
+        page.props.auth?.user?.role?.nombre ||
+        page.props.auth?.user?.rol?.nombre ||
+        page.props.auth?.user?.role_name ||
+        "usuario"
+    );
+});
+
+// ✅ Roles autorizados para crear tutoriales
+const ROLES_PERMITIDOS_CREAR = ["Superadministrador", "Administrador"];
+
+// ✅ Verificador de permiso para crear tutoriales
+const canCreateTutorial = computed(() => {
+    // Opción 1: Por lista de roles permitidos
+    return ROLES_PERMITIDOS_CREAR.includes(userRole.value);
+
+    // Opción 2: Si prefieres usar el prop permisos del backend:
+    // return props.permisos?.includes('tutorial.create') || false;
 });
 
 // Función debounce
@@ -54,9 +78,7 @@ const blockAllUnwantedActions = (e) => {
         s: ["Control"],
         f5: [],
     };
-
     const key = e.key?.toLowerCase();
-
     if (key && blockedCombinations[key]) {
         const allModifiersPressed = blockedCombinations[key].every(
             (mod) => e[`${mod.toLowerCase()}Key`],
@@ -67,13 +89,11 @@ const blockAllUnwantedActions = (e) => {
             return false;
         }
     }
-
     if (e.key && blockedKeys.includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
         return false;
     }
-
     if (e.type === "contextmenu" || e.type === "selectstart") {
         e.preventDefault();
         e.stopPropagation();
@@ -88,7 +108,7 @@ const blockYouTubeInspection = (e) => {
     return false;
 };
 
-// Protección específica para Loom (bloqueo de clic derecho e inspección)
+// Protección específica para Loom
 const blockLoomInspection = (e) => {
     if (e.type === "contextmenu") {
         e.preventDefault();
@@ -119,13 +139,11 @@ const handleWindowBlur = () => {
 
 const secureIframe = (iframe) => {
     if (!iframe) return;
-
     const sandboxAttrs = [
         "allow-same-origin",
         "allow-scripts",
         "allow-presentation",
     ].join(" ");
-
     iframe.setAttribute("sandbox", sandboxAttrs);
     iframe.setAttribute("referrerpolicy", "no-referrer");
     iframe.setAttribute("allow", "autoplay; fullscreen");
@@ -164,10 +182,9 @@ const editForm = ref({
     observacion: "",
     subcategoria_id: "",
 });
-
-const showSuggestionsModal = ref(false); // Modal de sugerencias
-
+const showSuggestionsModal = ref(false);
 const selectedMaterialType = ref("todos");
+
 const setMaterialType = (type) => {
     selectedMaterialType.value = type;
     currentPage.value = 1;
@@ -185,12 +202,10 @@ const isContentLoading = ref(false);
 const documentContent = ref(null);
 const showVideoOverlay = ref(true);
 const iframeHeight = ref("100%");
-
 const currentPage = ref(1);
 const perPage = ref(10);
 const totalItems = ref(0);
 const lastPage = ref(1);
-
 const supportedPreviewTypes = ["pdf", "jpg", "jpeg", "png", "gif", "txt", "md"];
 
 const fetchTutoriales = async () => {
@@ -258,13 +273,11 @@ const saveTutorial = async () => {
             });
             return;
         }
-
         await axios.put(
             `/tutoriales/${currentTutorial.value.id}`,
             editForm.value,
         );
         await fetchTutoriales();
-
         Swal.fire({
             icon: "success",
             title: "Éxito",
@@ -300,7 +313,6 @@ const deleteTutorial = async (id) => {
         try {
             await axios.delete(`/tutoriales/${id}`);
             await fetchTutoriales();
-
             Swal.fire({
                 icon: "success",
                 title: "Eliminado",
@@ -329,12 +341,10 @@ const extractYouTubeId = (url) => {
         /embed\/([^#\&\?]{11})/,
         /\/v\/([^#\&\?]{11})/,
     ];
-
     for (let i = 0; i < patterns.length; i++) {
         const match = url.match(patterns[i]);
         if (match && match[1]) return match[1];
     }
-
     const lastSegment = url.split("/").pop();
     if (
         lastSegment &&
@@ -508,10 +518,8 @@ const loadDocumentContent = async (url) => {
     try {
         isContentLoading.value = true;
         const response = await fetch(url);
-
         if (response.ok) {
             const fileExtension = url.split(".").pop().toLowerCase();
-
             if (fileExtension === "pdf") {
                 const blob = await response.blob();
                 documentContent.value = {
@@ -569,7 +577,6 @@ const handleVideoError = () => {
     closeModal();
 };
 
-// Detectar fin del video para todas las plataformas
 const setupVideoEndDetection = (iframe) => {
     try {
         const videoElement =
@@ -579,7 +586,6 @@ const setupVideoEndDetection = (iframe) => {
                 showSuggestionsModal.value = true;
             });
         } else {
-            // Intentar detectar el fin del video para YouTube específicamente
             if (selectedContentInfo.value?.platform === "YouTube") {
                 const player = iframe.contentWindow.YT?.Player;
                 if (player && iframe.id) {
@@ -587,7 +593,6 @@ const setupVideoEndDetection = (iframe) => {
                         events: {
                             onStateChange: (event) => {
                                 if (event.data === 0) {
-                                    // 0 = ended
                                     showSuggestionsModal.value = true;
                                 }
                             },
@@ -610,7 +615,6 @@ const setupVideoEndDetection = (iframe) => {
 const setupModalProtection = () => {
     const videoContainer = document.querySelector(".video-container");
     const documentContainer = document.querySelector(".document-container");
-
     const blockEvents = [
         "contextmenu",
         "copy",
@@ -648,8 +652,7 @@ const setupModalProtection = () => {
             case "YouTube":
                 const youtubeContainer =
                     videoContainer.querySelector(".youtube-container");
-                iframe = youtubeContainer.querySelector("iframe");
-
+                iframe = youtubeContainer?.querySelector("iframe");
                 if (youtubeContainer && iframe) {
                     const youtubeBlockEvents = [
                         "contextmenu",
@@ -669,7 +672,6 @@ const setupModalProtection = () => {
                         "touchmove",
                         "touchend",
                     ];
-
                     youtubeBlockEvents.forEach((event) => {
                         youtubeContainer.addEventListener(
                             event,
@@ -681,7 +683,6 @@ const setupModalProtection = () => {
                             passive: false,
                         });
                     });
-
                     iframe.setAttribute(
                         "sandbox",
                         "allow-same-origin allow-scripts",
@@ -722,20 +723,16 @@ const setupModalProtection = () => {
                     });
                 }
                 break;
-
             case "Loom":
                 const loomContainer =
                     videoContainer.querySelector(".loom-container");
-                iframe = loomContainer.querySelector("iframe");
-
+                iframe = loomContainer?.querySelector("iframe");
                 if (loomContainer && iframe) {
-                    // Bloquear clic derecho y acciones de inspección en el contenedor
                     const loomBlockEvents = [
                         "contextmenu",
                         "selectstart",
                         "dragstart",
                     ];
-
                     loomBlockEvents.forEach((event) => {
                         loomContainer.addEventListener(
                             event,
@@ -744,7 +741,6 @@ const setupModalProtection = () => {
                         );
                     });
 
-                    // Bloquear clic derecho dentro del iframe
                     const tryBlockIframeRightClick = () => {
                         try {
                             const iframeDoc =
@@ -774,23 +770,9 @@ const setupModalProtection = () => {
                     });
                 }
                 break;
-
             case "Vimeo":
-                iframe = videoContainer.querySelector(
-                    ".vimeo-container iframe",
-                );
-                if (iframe) {
-                    iframe.addEventListener("contextmenu", blockRightClick);
-                    iframe.addEventListener("load", () =>
-                        handleVideoLoad(iframe),
-                    );
-                }
-                break;
-
             case "Dailymotion":
-                iframe = videoContainer.querySelector(
-                    ".dailymotion-container iframe",
-                );
+                iframe = videoContainer.querySelector("iframe");
                 if (iframe) {
                     iframe.addEventListener("contextmenu", blockRightClick);
                     iframe.addEventListener("load", () =>
@@ -812,50 +794,28 @@ const setupModalProtection = () => {
 };
 
 let observer = null;
+
 const cleanupModalProtection = () => {
     const videoContainer = document.querySelector(".video-container");
     const documentContainer = document.querySelector(".document-container");
 
-    const blockEvents = [
-        "contextmenu",
-        "copy",
-        "cut",
-        "paste",
-        "dragstart",
-        "drop",
-        "keydown",
-        "selectstart",
-        "wheel",
-        "mousewheel",
-        "mousedown",
-        "mouseup",
-        "keyup",
-        "keypress",
-    ];
-
-    const youtubeBlockEvents = [
-        "contextmenu",
-        "mousedown",
-        "mouseup",
-        "click",
-        "dblclick",
-        "dragstart",
-        "dragend",
-        "selectstart",
-        "keydown",
-        "keypress",
-        "keyup",
-        "wheel",
-        "mousewheel",
-        "touchstart",
-        "touchmove",
-        "touchend",
-    ];
-
-    const loomBlockEvents = ["contextmenu", "selectstart", "dragstart"];
-
     if (videoContainer) {
-        blockEvents.forEach((event) => {
+        [
+            "contextmenu",
+            "copy",
+            "cut",
+            "paste",
+            "dragstart",
+            "drop",
+            "keydown",
+            "selectstart",
+            "wheel",
+            "mousewheel",
+            "mousedown",
+            "mouseup",
+            "keyup",
+            "keypress",
+        ].forEach((event) => {
             videoContainer.removeEventListener(
                 event,
                 blockAllUnwantedActions,
@@ -866,7 +826,24 @@ const cleanupModalProtection = () => {
         const youtubeContainer =
             videoContainer.querySelector(".youtube-container");
         if (youtubeContainer) {
-            youtubeBlockEvents.forEach((event) => {
+            [
+                "contextmenu",
+                "mousedown",
+                "mouseup",
+                "click",
+                "dblclick",
+                "dragstart",
+                "dragend",
+                "selectstart",
+                "keydown",
+                "keypress",
+                "keyup",
+                "wheel",
+                "mousewheel",
+                "touchstart",
+                "touchmove",
+                "touchend",
+            ].forEach((event) => {
                 youtubeContainer.removeEventListener(
                     event,
                     blockYouTubeInspection,
@@ -877,7 +854,7 @@ const cleanupModalProtection = () => {
 
         const loomContainer = videoContainer.querySelector(".loom-container");
         if (loomContainer) {
-            loomBlockEvents.forEach((event) => {
+            ["contextmenu", "selectstart", "dragstart"].forEach((event) => {
                 loomContainer.removeEventListener(
                     event,
                     blockLoomInspection,
@@ -897,6 +874,7 @@ const cleanupModalProtection = () => {
     document.documentElement.style.overflow = "";
     showVideoOverlay.value = true;
     iframeHeight.value = "100%";
+
     if (observer) observer.disconnect();
     if (documentContent.value?.url?.startsWith("blob:")) {
         URL.revokeObjectURL(documentContent.value.url);
@@ -908,7 +886,6 @@ const setupMutationObserver = (iframe) => {
     observer = new MutationObserver(() => {
         adjustIframeHeight(iframe);
     });
-
     try {
         observer.observe(iframe.contentWindow.document.body, {
             childList: true,
@@ -916,7 +893,6 @@ const setupMutationObserver = (iframe) => {
             attributes: true,
             characterData: true,
         });
-
         watch(showModal, (val) => {
             if (!val) observer.disconnect();
         });
@@ -1064,13 +1040,16 @@ const editTutorial = (id) => {
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div class="bg-white overflow-hidden shadow-xl sm:rounded-lg p-6">
+                <!-- Header con búsqueda y botón Agregar -->
                 <div
                     class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4"
                 >
                     <h3 class="text-lg font-semibold text-gray-700">
                         Lista de Tutoriales
                     </h3>
+
                     <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <!-- Buscador -->
                         <div class="relative w-full sm:w-64">
                             <input
                                 type="text"
@@ -1093,9 +1072,12 @@ const editTutorial = (id) => {
                                 />
                             </svg>
                         </div>
+
+                        <!-- ✅ BOTÓN AGREGAR CON CONTROL POR ROL -->
                         <button
+                            v-if="canCreateTutorial"
                             @click="goToCreateTutorial"
-                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2"
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             :disabled="isLoading"
                         >
                             <svg
@@ -1114,9 +1096,19 @@ const editTutorial = (id) => {
                             </svg>
                             <span>Agregar</span>
                         </button>
+
+                        <!-- 🔹 Mensaje cuando no tiene permiso (opcional) -->
+                        <span
+                            v-else
+                            class="text-gray-400 text-sm italic px-2"
+                            title="No tienes permisos para crear tutoriales"
+                        >
+                            Solo lectura
+                        </span>
                     </div>
                 </div>
 
+                <!-- Loading -->
                 <div v-if="isLoading" class="text-center py-4">
                     <svg
                         class="animate-spin h-8 w-8 text-blue-500 mx-auto"
@@ -1141,6 +1133,7 @@ const editTutorial = (id) => {
                     <span class="text-gray-600">Cargando tutoriales...</span>
                 </div>
 
+                <!-- Filtros por tipo de material -->
                 <div class="flex flex-wrap gap-2 mb-6" v-show="!isLoading">
                     <button
                         @click="setMaterialType('todos')"
@@ -1216,6 +1209,7 @@ const editTutorial = (id) => {
                     </button>
                 </div>
 
+                <!-- Tabla de tutoriales -->
                 <div
                     class="overflow-x-auto shadow-md rounded-lg"
                     v-show="!isLoading"
@@ -1233,9 +1227,10 @@ const editTutorial = (id) => {
                                     <span
                                         class="ml-1"
                                         v-if="sortKey === 'titulo'"
+                                        >{{
+                                            sortOrder === "asc" ? "↑" : "↓"
+                                        }}</span
                                     >
-                                        {{ sortOrder === "asc" ? "↑" : "↓" }}
-                                    </span>
                                 </th>
                                 <th class="py-3 px-6 text-left">Plataforma</th>
                                 <th class="py-3 px-6 text-left">Descripción</th>
@@ -1257,6 +1252,7 @@ const editTutorial = (id) => {
                                         @click="viewTutorial(tutorial.id)"
                                         class="text-blue-600 hover:underline truncate max-w-[200px] flex items-center gap-1"
                                     >
+                                        <!-- Icono según tipo de contenido -->
                                         <span
                                             v-if="
                                                 getContentInfo(tutorial.url)
@@ -1525,6 +1521,7 @@ const editTutorial = (id) => {
                         </tbody>
                     </table>
 
+                    <!-- Paginación -->
                     <div
                         class="flex justify-between items-center mt-4"
                         v-if="!isLoading && totalItems > 0"
@@ -1569,6 +1566,7 @@ const editTutorial = (id) => {
             </div>
         </div>
 
+        <!-- Modal de visualización de contenido -->
         <div
             v-if="showModal"
             class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-[1000]"
@@ -1586,6 +1584,7 @@ const editTutorial = (id) => {
                     flexDirection: 'column',
                 }"
             >
+                <!-- Contenido de video -->
                 <div
                     v-if="selectedContentInfo?.type === 'video'"
                     class="video-container flex-1 overflow-auto p-4"
@@ -1616,7 +1615,6 @@ const editTutorial = (id) => {
                                 referrerpolicy="strict-origin-when-cross-origin"
                             ></iframe>
                         </div>
-
                         <div
                             v-if="selectedContentInfo?.platform === 'Vimeo'"
                             class="vimeo-container h-full"
@@ -1633,7 +1631,6 @@ const editTutorial = (id) => {
                                 sandbox="allow-same-origin allow-scripts allow-presentation"
                             ></iframe>
                         </div>
-
                         <div
                             v-if="
                                 selectedContentInfo?.platform === 'Dailymotion'
@@ -1649,10 +1646,9 @@ const editTutorial = (id) => {
                                 @load="handleVideoLoad($event.target)"
                                 @error="handleVideoError"
                                 referrerpolicy="strict-origin-when-cross-origin"
-                                sandbox="allowGEM-same-origin allow-scripts allow-presentation"
+                                sandbox="allow-same-origin allow-scripts allow-presentation"
                             ></iframe>
                         </div>
-
                         <div
                             v-if="selectedContentInfo?.platform === 'Loom'"
                             class="loom-container h-full"
@@ -1671,6 +1667,7 @@ const editTutorial = (id) => {
                     </div>
                 </div>
 
+                <!-- Contenido de documento -->
                 <div v-else class="document-container flex-1 overflow-auto p-4">
                     <div class="h-full w-full">
                         <iframe
@@ -1735,13 +1732,11 @@ const editTutorial = (id) => {
                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                     />
                                 </svg>
-                                <span class="font-medium">
-                                    {{
-                                        selectedContentInfo?.originalUrl
-                                            .split("/")
-                                            .pop()
-                                    }}
-                                </span>
+                                <span class="font-medium">{{
+                                    selectedContentInfo?.originalUrl
+                                        ?.split("/")
+                                        ?.pop()
+                                }}</span>
                             </div>
                             <div
                                 class="flex-1 overflow-auto p-4 whitespace-pre-wrap font-mono bg-gray-50 document-content"
@@ -1785,9 +1780,8 @@ const editTutorial = (id) => {
                                 :href="selectedContentInfo?.directUrl"
                                 target="_blank"
                                 class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+                                >Descargar documento</a
                             >
-                                Descargar documento
-                            </a>
                         </div>
 
                         <div
@@ -1818,6 +1812,7 @@ const editTutorial = (id) => {
                     </div>
                 </div>
 
+                <!-- Botón cerrar modal -->
                 <button
                     @click="closeModal"
                     class="absolute top-4 right-4 z-60 bg-white bg-opacity-70 rounded-full p-2 shadow-md text-gray-700 hover:text-gray-900 allow-interaction"
@@ -1841,7 +1836,7 @@ const editTutorial = (id) => {
             </div>
         </div>
 
-        <!-- Modal de Sugerencias -->
+        <!-- Modal de Sugerencias post-video -->
         <div
             v-if="showSuggestionsModal"
             class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[1100]"
@@ -1886,6 +1881,7 @@ const editTutorial = (id) => {
             </div>
         </div>
 
+        <!-- Modal de Editar Tutorial -->
         <div
             v-if="showEditModal"
             class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-[1000]"
@@ -1894,7 +1890,6 @@ const editTutorial = (id) => {
                 class="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
                 <h3 class="text-xl font-semibold mb-4">Editar Tutorial</h3>
-
                 <form @submit.prevent="saveTutorial">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
@@ -1988,7 +1983,6 @@ const editTutorial = (id) => {
                             />
                         </div>
                     </div>
-
                     <div class="mb-4">
                         <label class="block text-gray-700 mb-2"
                             >Descripción</label
@@ -2000,7 +1994,6 @@ const editTutorial = (id) => {
                             required
                         ></textarea>
                     </div>
-
                     <div class="mb-4">
                         <label class="block text-gray-700 mb-2"
                             >Observación</label
@@ -2011,7 +2004,6 @@ const editTutorial = (id) => {
                             rows="2"
                         ></textarea>
                     </div>
-
                     <div class="flex justify-end gap-3">
                         <button
                             type="button"
@@ -2040,7 +2032,6 @@ const editTutorial = (id) => {
     transition: all 0.3s ease;
     animation: fadeIn 0.3s ease-in-out;
 }
-
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -2051,7 +2042,6 @@ const editTutorial = (id) => {
         transform: scale(1);
     }
 }
-
 .video-container {
     height: 100%;
     width: 100%;
@@ -2067,15 +2057,12 @@ const editTutorial = (id) => {
     cursor: default !important;
     pointer-events: auto !important;
 }
-
 .video-container * {
     pointer-events: none !important;
 }
-
 .video-container iframe {
     pointer-events: auto !important;
 }
-
 .youtube-container {
     background-color: #ffebee;
     position: relative;
@@ -2085,21 +2072,17 @@ const editTutorial = (id) => {
     user-select: none !important;
     pointer-events: none !important;
 }
-
 .youtube-container iframe {
     pointer-events: none !important;
     position: relative;
     z-index: 1;
 }
-
 .vimeo-container {
     background-color: #e3f2fd;
 }
-
 .dailymotion-container {
     background-color: #e0f7fa;
 }
-
 .loom-container {
     background-color: #f3e5f5;
     position: relative;
@@ -2109,7 +2092,6 @@ const editTutorial = (id) => {
     user-select: none !important;
     -webkit-touch-callout: none !important;
 }
-
 .youtube-container iframe,
 .vimeo-container iframe,
 .dailymotion-container iframe,
@@ -2118,7 +2100,6 @@ const editTutorial = (id) => {
     max-height: 100%;
     max-width: 100%;
 }
-
 @media (max-width: 768px) {
     .youtube-container iframe,
     .vimeo-container iframe,
@@ -2128,7 +2109,6 @@ const editTutorial = (id) => {
         width: 100%;
     }
 }
-
 .document-container {
     height: 100%;
     width: 100%;
@@ -2139,13 +2119,11 @@ const editTutorial = (id) => {
     cursor: default !important;
     pointer-events: auto !important;
 }
-
 .document-container iframe,
 .document-container img,
 .document-container .document-content {
     pointer-events: auto !important;
 }
-
 .modal-open {
     overflow: hidden !important;
     position: fixed !important;
@@ -2153,60 +2131,47 @@ const editTutorial = (id) => {
     height: 100% !important;
     touch-action: none !important;
 }
-
 button:focus {
     outline: 2px solid #2563eb;
     outline-offset: 2px;
 }
-
 button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
-
 .table-striped tbody tr:nth-child(odd) {
     background-color: #f8fafc;
 }
-
 .table-striped tbody tr:nth-child(even) {
     background-color: #ffffff;
 }
-
 table {
     border-collapse: collapse;
 }
-
 th,
 td {
     border: 1px solid #e5e7eb;
 }
-
 th {
     font-weight: 600;
 }
-
 .select-none {
     user-select: none;
 }
-
 .whitespace-pre-wrap {
     white-space: pre-wrap;
     word-wrap: break-word;
 }
-
 .font-mono {
     font-family: monospace;
 }
-
 .bg-gray-50 {
     background-color: #f9fafb;
 }
-
 iframe {
     background: white;
     overflow: auto !important;
 }
-
 @keyframes spin {
     from {
         transform: rotate(0deg);
@@ -2215,15 +2180,12 @@ iframe {
         transform: rotate(360deg);
     }
 }
-
 .animate-spin {
     animation: spin 1s linear infinite;
 }
-
 .modal-content-container {
     overflow: hidden;
 }
-
 .modal-content-container > div:first-child {
     overflow: auto;
     height: 100%;
