@@ -9,6 +9,25 @@ class BitrixService
 {
     protected $baseUrl;
 
+    // 🗂️ Mapeo de roles de Laravel → IDs de Bitrix
+    protected const ROLE_MAPPING = [
+        // Rol por defecto / estándar
+        'usuario' => 5367,           // "Suscriptor SLC"
+
+        // Roles con company_id
+        'cliente_admin' => 5369,     // "Cliente Admin"
+        'cliente_premium' => 5371,   // "Cliente Premium"
+
+        // Otros roles (si los usas en el futuro)
+        'superadmin' => 5363,        // "Superadmin We collab"
+        'admin' => 5365,             // "Admin We collab"
+        'publico' => 5373,           // "Usuario Público"
+        'prospecto' => 5375,         // "Prospecto"
+    ];
+
+    // Valor por defecto si el rol no está mapeado
+    protected const DEFAULT_ROLE_ID = 5367;  // "Suscriptor SLC"
+
     public function __construct()
     {
         $this->baseUrl = env('BITRIX_BASE');
@@ -16,21 +35,31 @@ class BitrixService
 
     public function crearContacto($user)
     {
-        // 📱 Asegurar que el teléfono tenga código de país
+        // 📱 Formatear teléfono con código de país
         $telefonoBitrix = $this->formatearTelefonoParaBitrix($user);
 
+        // 🎭 Obtener ID del rol para Bitrix
+        $roleIdBitrix = $this->obtenerRoleIdParaBitrix($user);
+
+        $fields = [
+            'NAME' => $user->name,
+            'LAST_NAME' => $user->apellido,
+            'EMAIL' => [
+                ['VALUE' => $user->email, 'VALUE_TYPE' => 'WORK']
+            ],
+            'PHONE' => [
+                ['VALUE' => $telefonoBitrix, 'VALUE_TYPE' => 'WORK']
+            ],
+            'ADDRESS' => $user->direccion,
+        ];
+
+        // 🆕 Agregar campo personalizado de rol SOLO si tiene valor
+        if ($roleIdBitrix) {
+            $fields['UF_CRM_1774285999281'] = $roleIdBitrix;
+        }
+
         $response = Http::post($this->baseUrl . 'crm.contact.add.json', [
-            'fields' => [
-                'NAME' => $user->name,
-                'LAST_NAME' => $user->apellido,
-                'EMAIL' => [
-                    ['VALUE' => $user->email, 'VALUE_TYPE' => 'WORK']
-                ],
-                'PHONE' => [
-                    ['VALUE' => $telefonoBitrix, 'VALUE_TYPE' => 'WORK']
-                ],
-                'ADDRESS' => $user->direccion,
-            ]
+            'fields' => $fields
         ]);
 
         return $response->json()['result'] ?? null;
@@ -40,6 +69,9 @@ class BitrixService
     {
         // 📱 Formatear teléfono para comentarios
         $telefonoBitrix = $this->formatearTelefonoParaBitrix($user);
+
+        // 🎭 Obtener nombre legible del rol para comentarios
+        $roleName = $this->obtenerNombreRolParaBitrix($user);
 
         Http::post($this->baseUrl . 'crm.deal.add.json', [
             'fields' => [
@@ -53,9 +85,11 @@ class BitrixService
                 'COMMENTS' =>
                     "Email: {$user->email}\n" .
                     "Teléfono: {$telefonoBitrix}\n" .
+                    "Rol: {$roleName}\n" .
                     "País: {$user->country_name}\n" .
                     "Estado: {$user->state}\n" .
-                    "Ciudad: {$user->city}",
+                    "Ciudad: {$user->city}" .
+                    ($user->company_id ? "\nCompany ID: {$user->company_id}" : ""),
             ]
         ]);
     }
@@ -69,12 +103,58 @@ class BitrixService
                 $this->crearDeal($user, $contactId);
             }
 
+            Log::info('✅ Usuario enviado a Bitrix', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'role_laravel' => $user->role?->nombre ?? 'sin_rol',
+                'role_bitrix_id' => $this->obtenerRoleIdParaBitrix($user),
+                'company_id' => $user->company_id,
+            ]);
+
         } catch (\Exception $e) {
-            Log::error('Bitrix error: ' . $e->getMessage(), [
+            Log::error('❌ Bitrix error', [
                 'user_id' => $user->id ?? null,
-                'telefono_original' => $user->telefono ?? null,
+                'email' => $user->email ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
+    }
+
+    /**
+     * 🎭 Mapea el rol de Laravel al ID correspondiente en Bitrix
+     */
+    protected function obtenerRoleIdParaBitrix($user): ?int
+    {
+        // Obtener nombre del rol desde la relación
+        $roleName = $user->role?->nombre ?? null;
+
+        if (!$roleName) {
+            return self::DEFAULT_ROLE_ID;
+        }
+
+        // Buscar en el mapeo, si no existe usar default
+        return self::ROLE_MAPPING[$roleName] ?? self::DEFAULT_ROLE_ID;
+    }
+
+    /**
+     * 🏷️ Obtiene el nombre legible del rol para mostrar en comentarios
+     */
+    protected function obtenerNombreRolParaBitrix($user): string
+    {
+        $roleName = $user->role?->nombre ?? 'usuario';
+
+        $roleLabels = [
+            'usuario' => 'Suscriptor SLC',
+            'cliente_admin' => 'Cliente Admin',
+            'cliente_premium' => 'Cliente Premium',
+            'superadmin' => 'Superadmin We collab',
+            'admin' => 'Admin We collab',
+            'publico' => 'Usuario Público',
+            'prospecto' => 'Prospecto',
+        ];
+
+        return $roleLabels[$roleName] ?? 'Suscriptor SLC';
     }
 
     /**
@@ -89,7 +169,7 @@ class BitrixService
             return $telefono;
         }
 
-        // Mapping de códigos telefónicos (mismo que en frontend)
+        // Mapping de códigos telefónicos
         $phoneCodes = [
             'AR' => '+54',
             'BO' => '+591',

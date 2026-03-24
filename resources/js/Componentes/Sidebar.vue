@@ -10,55 +10,144 @@ const props = defineProps({ showingNavigationDropdown: Boolean });
 const emit = defineEmits(["update:showingNavigationDropdown"]);
 
 // ─────────────────────────────────────────────────────
-// 🔐 USUARIO Y ROL (desde Inertia)
+// 🔐 ROLES REALES (Exactamente como están en tu tabla "roles")
+// ─────────────────────────────────────────────────────
+const ROLES = {
+    1: { nombre: "Superadmin We collab", key: "SUPERADMIN_WE_COLLAB" },
+    2: { nombre: "Admin We collab", key: "ADMIN_WE_COLLAB" },
+    3: { nombre: "Suscriptor SLC", key: "SUSCRIPTOR_SLC" },
+    4: { nombre: "Cliente Admin", key: "CLIENTE_ADMIN" },
+    5: { nombre: "Cliente Premium", key: "CLIENTE_PREMIUM" },
+    6: { nombre: "Usuario Público", key: "USUARIO_PUBLICO" },
+    7: { nombre: "Prospecto", key: "PROSPECTO" },
+    8: { nombre: "usuario", key: "USUARIO_ESTANDAR" },
+};
+
+const ROLE_IDS = {
+    SUPERADMIN_WE_COLLAB: 1,
+    ADMIN_WE_COLLAB: 2,
+    SUSCRIPTOR_SLC: 3,
+    CLIENTE_ADMIN: 4,
+    CLIENTE_PREMIUM: 5,
+    USUARIO_PUBLICO: 6,
+    PROSPECTO: 7,
+    USUARIO_ESTANDAR: 8,
+};
+
+const ROLE_GROUPS = {
+    ADMIN_WE_COLLAB_TOTAL: [ROLE_IDS.SUPERADMIN_WE_COLLAB],
+    ADMIN_WE_COLLAB_OPERATIVO: [
+        ROLE_IDS.SUPERADMIN_WE_COLLAB,
+        ROLE_IDS.ADMIN_WE_COLLAB,
+    ],
+    GESTORES: [
+        ROLE_IDS.SUPERADMIN_WE_COLLAB,
+        ROLE_IDS.ADMIN_WE_COLLAB,
+        ROLE_IDS.CLIENTE_ADMIN,
+    ],
+    CLIENTES_CON_ACCESO: [
+        ROLE_IDS.SUSCRIPTOR_SLC,
+        ROLE_IDS.CLIENTE_ADMIN,
+        ROLE_IDS.CLIENTE_PREMIUM,
+    ],
+    ACCESO_CATALOGO: [
+        ROLE_IDS.USUARIO_PUBLICO,
+        ROLE_IDS.PROSPECTO,
+        ROLE_IDS.USUARIO_ESTANDAR,
+    ],
+    TODOS_ACTIVOS: Object.values(ROLE_IDS),
+};
+
+// ─────────────────────────────────────────────────────
+// 🔐 USUARIO Y ROL (desde Inertia page.props.auth)
 // ─────────────────────────────────────────────────────
 const currentUser = computed(() => page.props.auth?.user);
 const userRole = computed(() => currentUser.value?.role);
 const userRoleId = computed(() => userRole.value?.id);
+const userRoleName = computed(() => userRole.value?.nombre);
 const isRoleActive = computed(() => userRole.value?.estado === "activo");
 
-// Helper: Verificar si el rol actual está en la lista permitida
+// ─────────────────────────────────────────────────────
+// 🔒 VALIDACIÓN DE ACCESO (FAIL-CLOSED - Seguro por defecto)
+// ─────────────────────────────────────────────────────
 const canAccess = (allowedRoles) => {
-    if (!allowedRoles || allowedRoles.length === 0) return true; // Sin restricción
-    if (!userRoleId.value) return false;
+    // ❌ Denegar si: no hay usuario, no hay rol, o rol está inactivo
+    if (!userRoleId.value || !isRoleActive.value) return false;
+
+    // ❌ FAIL-CLOSED: Si no hay restricciones definidas, denegar acceso
+    if (!allowedRoles || allowedRoles.length === 0) return false;
+
+    // ✅ Verificar si el rol del usuario está en la lista permitida
     return allowedRoles.includes(userRoleId.value);
 };
 
+// Helper: Obtener clase CSS para badge de rol según tipo
+const getRoleBadgeClass = (roleId) => {
+    if (!isRoleActive.value)
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+
+    const classes = {
+        [ROLE_IDS.SUPERADMIN_WE_COLLAB]:
+            "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+        [ROLE_IDS.ADMIN_WE_COLLAB]:
+            "bg-blue-500/20 text-blue-300 border-blue-500/30",
+        [ROLE_IDS.CLIENTE_ADMIN]:
+            "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+        [ROLE_IDS.SUSCRIPTOR_SLC]:
+            "bg-purple-500/20 text-purple-300 border-purple-500/30",
+        [ROLE_IDS.CLIENTE_PREMIUM]:
+            "bg-violet-500/20 text-violet-300 border-violet-500/30",
+        [ROLE_IDS.USUARIO_PUBLICO]:
+            "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
+        [ROLE_IDS.PROSPECTO]: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+        [ROLE_IDS.USUARIO_ESTANDAR]:
+            "bg-slate-500/20 text-slate-300 border-slate-500/30",
+    };
+    return classes[roleId] || "bg-gray-500/20 text-gray-300 border-gray-500/30";
+};
+
 // ─────────────────────────────────────────────────────
-// 📋 CONFIGURACIÓN DEL MENÚ (CENTRALIZADA)
-// ✅ Aquí defines qué roles ven cada ítem
+// 📋 CONFIGURACIÓN DEL MENÚ (Con roles reales de tu BD)
 // ─────────────────────────────────────────────────────
 const MENU_CONFIG = {
     tutorial: {
-        visible: true, // La sección completa se puede ocultar si es necesario
+        visible: true,
         items: [
             {
                 key: "categorias",
                 label: "Categorías",
                 icon: "fa-layer-group",
                 href: "/categorias",
-                roles: [1, 2, 4], // SuperAdmin, Admin, ClienteAdmin
+                roles: ROLE_GROUPS.GESTORES,
+                description: "Gestión de categorías de contenido",
             },
             {
                 key: "subcategorias",
                 label: "Subcategorías",
                 icon: "fa-sitemap",
                 href: "/subcategorias",
-                roles: [1, 2, 4],
+                roles: ROLE_GROUPS.GESTORES,
             },
             {
                 key: "tutoriales",
                 label: "Videos Capacitación",
                 icon: "fa-video",
                 href: "/tutoriales",
-                roles: [1, 2, 4, 5, 6, 7], // Todos excepto Prospecto (8)
+                roles: [
+                    ROLE_IDS.SUPERADMIN_WE_COLLAB,
+                    ROLE_IDS.ADMIN_WE_COLLAB,
+                    ROLE_IDS.SUSCRIPTOR_SLC,
+                    ROLE_IDS.CLIENTE_ADMIN,
+                    ROLE_IDS.CLIENTE_PREMIUM,
+                    ROLE_IDS.USUARIO_PUBLICO,
+                ],
             },
             {
                 key: "comentarios",
                 label: "Comentarios",
                 icon: "fa-comments",
                 href: "/comentarios",
-                roles: [1, 2, 4],
+                roles: ROLE_GROUPS.GESTORES,
             },
         ],
     },
@@ -70,22 +159,23 @@ const MENU_CONFIG = {
                 label: "Crear Usuario",
                 icon: "fa-user-plus",
                 href: "/usuarios/create",
-                roles: [1, 2, 4],
+                roles: ROLE_GROUPS.GESTORES,
                 tooltip: "Solo usuarios de tu empresa",
+                restrictToCompany: true,
             },
             {
                 key: "editar_usuario",
                 label: "Editar Usuario",
                 icon: "fa-user-edit",
                 href: "/usuarios",
-                roles: [1, 2, 4],
+                roles: ROLE_GROUPS.GESTORES,
             },
             {
                 key: "eliminar_usuario",
                 label: "Eliminar Usuario",
                 icon: "fa-user-times",
                 href: "/usuarios",
-                roles: [1, 2, 4],
+                roles: ROLE_GROUPS.GESTORES,
                 requiresConfirm: true,
             },
         ],
@@ -98,35 +188,34 @@ const MENU_CONFIG = {
                 label: "Permisos",
                 icon: "fa-key",
                 href: "/permisos",
-                roles: [1], // Solo SuperAdmin
-                badge: "Admin",
+                roles: ROLE_GROUPS.ADMIN_WE_COLLAB_TOTAL,
+                badge: "SuperAdmin",
             },
             {
                 key: "roles",
                 label: "Roles",
                 icon: "fa-user-shield",
                 href: "/roles",
-                roles: [1],
-                badge: "Admin",
+                roles: ROLE_GROUPS.ADMIN_WE_COLLAB_TOTAL,
+                badge: "SuperAdmin",
             },
             {
                 key: "reportes",
                 label: "Reportes",
                 icon: "fa-chart-bar",
                 href: "/reportes",
-                roles: [1, 2, 4],
+                roles: ROLE_GROUPS.GESTORES,
             },
         ],
     },
 };
 
 // ─────────────────────────────────────────────────────
-// 🔍 FILTRADO DINÁMICO DE ITEMS
+// 🔍 FILTRADO DINÁMICO DE ITEMS (con validación de estado)
 // ─────────────────────────────────────────────────────
 const getVisibleItems = (sectionKey) => {
     const section = MENU_CONFIG[sectionKey];
-    if (!section?.items) return [];
-
+    if (!section?.items || !isRoleActive.value) return [];
     return section.items.filter((item) => canAccess(item.roles));
 };
 
@@ -134,18 +223,22 @@ const visibleTutorialItems = computed(() => getVisibleItems("tutorial"));
 const visibleUsuariosItems = computed(() => getVisibleItems("usuarios"));
 const visibleConfigItems = computed(() => getVisibleItems("configuracion"));
 
-// ¿Mostrar sección completa?
 const showTutorialSection = computed(
-    () => visibleTutorialItems.value.length > 0,
+    () => visibleTutorialItems.value.length > 0 && isRoleActive.value,
 );
 const showUsuariosSection = computed(
-    () => visibleUsuariosItems.value.length > 0,
+    () => visibleUsuariosItems.value.length > 0 && isRoleActive.value,
 );
-const showConfigSection = computed(() => visibleConfigItems.value.length > 0);
+const showConfigSection = computed(
+    () => visibleConfigItems.value.length > 0 && isRoleActive.value,
+);
 
-// Helpers para UI
-const isSuperAdmin = computed(() => userRoleId.value === 1);
-const isClienteAdmin = computed(() => userRoleId.value === 4);
+const isSuperAdminWeCollab = computed(
+    () => userRoleId.value === ROLE_IDS.SUPERADMIN_WE_COLLAB,
+);
+const isClienteAdmin = computed(
+    () => userRoleId.value === ROLE_IDS.CLIENTE_ADMIN,
+);
 
 // ─────────────────────────────────────────────────────
 // 🔄 LÓGICA DE SUBMENÚS Y EVENTOS
@@ -196,7 +289,7 @@ onUnmounted(() => {
         }"
         class="fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-[#1a3080] to-[#223e9c] shadow-2xl transform transition-all duration-300 ease-out lg:translate-x-0 lg:static lg:inset-0"
     >
-        <!-- Header -->
+        <!-- Header con Logo -->
         <div
             class="flex items-center justify-between h-20 px-6 border-b border-white/10 bg-white/5 backdrop-blur-sm"
         >
@@ -255,8 +348,8 @@ onUnmounted(() => {
 
         <!-- Navigation -->
         <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            <!-- Dashboard -->
-            <div class="mb-6">
+            <!-- Dashboard (Visible solo si rol está activo) -->
+            <div class="mb-6" v-if="isRoleActive">
                 <NavLink
                     :href="route('dashboard')"
                     :active="route().current('dashboard')"
@@ -292,7 +385,8 @@ onUnmounted(() => {
                 </NavLink>
             </div>
 
-            <div class="px-4 mb-2">
+            <!-- Separador "Components" (Solo si rol activo) -->
+            <div class="px-4 mb-2" v-if="isRoleActive">
                 <p
                     class="text-xs font-semibold text-white/40 uppercase tracking-wider"
                 >
@@ -300,7 +394,26 @@ onUnmounted(() => {
                 </p>
             </div>
 
-            <!-- Tutorial Section -->
+            <!-- ⚠️ MENSAJE: Rol inactivo -->
+            <div v-if="!isRoleActive" class="px-4 py-6">
+                <div
+                    class="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center"
+                >
+                    <i
+                        class="fas fa-exclamation-triangle text-amber-400 text-xl mb-2 block"
+                    ></i>
+                    <p class="text-sm font-medium text-white/90">
+                        Rol inactivo
+                    </p>
+                    <p class="text-xs text-white/60 mt-1">
+                        Tu acceso está suspendido. Contacta al administrador.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ───────────────────────────────────── -->
+            <!-- 📚 Sección: Tutorial -->
+            <!-- ───────────────────────────────────── -->
             <div v-if="showTutorialSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('tutorial')"
@@ -328,6 +441,7 @@ onUnmounted(() => {
                         :key="item.key"
                         :href="item.href"
                         class="group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1 transition-all duration-200"
+                        :title="item.description"
                     >
                         <i
                             :class="`fas ${item.icon} w-4 h-4 text-white/50 group-hover:text-cyan-400 transition-colors`"
@@ -337,8 +451,10 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Usuarios Section -->
-            <div v-if="showUsuariosSection && isRoleActive" class="mb-2">
+            <!-- ───────────────────────────────────── -->
+            <!-- 👥 Sección: Usuarios -->
+            <!-- ───────────────────────────────────── -->
+            <div v-if="showUsuariosSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('usuarios')"
                     class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 group"
@@ -385,7 +501,9 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Configuración Section -->
+            <!-- ───────────────────────────────────── -->
+            <!-- ⚙️ Sección: Configuración -->
+            <!-- ───────────────────────────────────── -->
             <div v-if="showConfigSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('configuracion')"
@@ -427,9 +545,36 @@ onUnmounted(() => {
                     </NavLink>
                 </div>
             </div>
+
+            <!-- ⚠️ MENSAJE: Rol activo pero sin menús disponibles -->
+            <div
+                v-else-if="
+                    isRoleActive &&
+                    ![
+                        ...visibleTutorialItems,
+                        ...visibleUsuariosItems,
+                        ...visibleConfigItems,
+                    ].length
+                "
+                class="px-4 py-6"
+            >
+                <div
+                    class="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl text-center"
+                >
+                    <i
+                        class="fas fa-info-circle text-blue-400 text-xl mb-2 block"
+                    ></i>
+                    <p class="text-sm font-medium text-white/90">
+                        Menú personalizado
+                    </p>
+                    <p class="text-xs text-white/60 mt-1">
+                        Tu rol "{{ userRoleName }}" tiene acceso limitado.
+                    </p>
+                </div>
+            </div>
         </nav>
 
-        <!-- Footer -->
+        <!-- Footer: Perfil de usuario con Dropdown -->
         <div
             class="p-4 border-t border-white/10 bg-gradient-to-b from-transparent to-black/20"
         >
@@ -439,6 +584,7 @@ onUnmounted(() => {
                         class="group w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
                         type="button"
                     >
+                        <!-- Avatar / Iniciales -->
                         <div class="relative">
                             <div
                                 class="absolute inset-0 bg-cyan-400/30 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
@@ -463,53 +609,61 @@ onUnmounted(() => {
                                 :alt="$page.props.auth.user.name"
                                 class="relative w-11 h-11 rounded-xl object-cover border-2 border-white/20 group-hover:border-cyan-400/50 transition-colors duration-300"
                             />
+                            <!-- Indicador de estado del rol -->
                             <span
                                 class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#1a3080] shadow-lg"
                                 :class="
                                     isRoleActive
-                                        ? 'bg-emerald-400 shadow-emerald-500/30'
+                                        ? 'bg-emerald-400 shadow-emerald-500/30 animate-pulse-slow'
                                         : 'bg-amber-400 shadow-amber-500/30'
                                 "
                                 :title="isRoleActive ? 'Activo' : 'Inactivo'"
                             ></span>
                         </div>
+
+                        <!-- Información del usuario -->
                         <div class="flex-1 min-w-0 text-left">
                             <p
                                 class="text-sm font-semibold text-white truncate group-hover:text-cyan-300 transition-colors duration-300"
                             >
                                 {{ $page.props.auth.user?.name || "Usuario" }}
                             </p>
+
+                            <!-- Badge del rol -->
                             <div
-                                v-if="userRole"
+                                v-if="userRole && isRoleActive"
                                 class="flex items-center gap-2 mt-0.5"
                             >
                                 <span
-                                    class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border"
-                                    :class="{
-                                        'bg-emerald-500/20 text-emerald-300 border-emerald-500/30':
-                                            userRoleId === 1,
-                                        'bg-cyan-500/20 text-cyan-300 border-cyan-500/30':
-                                            userRoleId === 4,
-                                        'bg-blue-500/20 text-blue-300 border-blue-500/30':
-                                            userRoleId === 2,
-                                        'bg-purple-500/20 text-purple-300 border-purple-500/30':
-                                            [5, 6].includes(userRoleId),
-                                        'bg-gray-500/20 text-gray-400 border-gray-500/30':
-                                            !isRoleActive,
-                                    }"
+                                    class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border truncate max-w-[140px] cursor-help"
+                                    :class="getRoleBadgeClass(userRoleId)"
+                                    :title="userRole.descripcion"
                                 >
                                     <i
                                         class="fas fa-shield-alt w-3 h-3 mr-1"
                                     ></i>
-                                    {{ userRole.nombre }}
+                                    {{ userRoleName }}
                                 </span>
                             </div>
+
+                            <!-- Mensaje si rol está inactivo -->
+                            <p
+                                v-else-if="userRole"
+                                class="text-xs text-amber-300/80 mt-0.5"
+                            >
+                                <i class="fas fa-pause-circle mr-1"></i>
+                                {{ userRoleName }} • Inactivo
+                            </p>
+
+                            <!-- Email del usuario -->
                             <p class="text-xs text-white/60 truncate">
                                 {{ $page.props.auth.user?.email || "" }}
                             </p>
                         </div>
+
+                        <!-- Flecha del dropdown -->
                         <svg
-                            class="w-4 h-4 text-white/40 group-hover:text-white/70 transition-colors"
+                            class="w-4 h-4 text-white/40 group-hover:text-white/70 transition-colors flex-shrink-0"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -523,8 +677,11 @@ onUnmounted(() => {
                         </svg>
                     </button>
                 </template>
+
+                <!-- Contenido del Dropdown -->
                 <template #content>
                     <div class="py-1">
+                        <!-- Cabecera del dropdown -->
                         <div
                             class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-800 dark:to-blue-900/20"
                         >
@@ -536,7 +693,31 @@ onUnmounted(() => {
                             <p class="text-xs text-gray-500 dark:text-gray-400">
                                 {{ $page.props.auth.user?.email }}
                             </p>
+                            <!-- Estado y rol en dropdown -->
+                            <p
+                                v-if="userRole"
+                                class="text-[10px] mt-1 px-2 py-0.5 rounded inline-block"
+                                :class="{
+                                    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300':
+                                        isRoleActive,
+                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300':
+                                        !isRoleActive,
+                                }"
+                            >
+                                <i
+                                    class="fas fa-circle w-2 h-2 mr-1"
+                                    :class="
+                                        isRoleActive
+                                            ? 'text-emerald-500'
+                                            : 'text-amber-500'
+                                    "
+                                ></i>
+                                {{ isRoleActive ? "Activo" : "Inactivo" }} •
+                                {{ userRoleName }}
+                            </p>
                         </div>
+
+                        <!-- Links del dropdown -->
                         <DropdownLink
                             :href="route('profile.show')"
                             class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800"
@@ -544,13 +725,24 @@ onUnmounted(() => {
                             <i class="fas fa-user w-4 h-4 text-blue-500"></i>
                             Perfil
                         </DropdownLink>
+
+                        <!-- ✅ CORREGIDO: Solo se muestra si la ruta existe en Ziggy -->
+                        <DropdownLink
+                            v-if="$page.props.ziggy?.routes?.['profile.edit']"
+                            :href="route('profile.edit')"
+                            class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800"
+                        >
+                            <i class="fas fa-cog w-4 h-4 text-gray-500"></i>
+                            Configuración
+                        </DropdownLink>
+
                         <div
                             class="border-t border-gray-200 dark:border-gray-700 my-1"
                         ></div>
                         <form @submit.prevent="logout">
                             <DropdownLink
                                 as="button"
-                                class="flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                class="flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
                             >
                                 <i
                                     class="fas fa-right-from-bracket w-4 h-4"
@@ -563,8 +755,8 @@ onUnmounted(() => {
             </Dropdown>
         </div>
 
-        <!-- Upgrade Button (solo SuperAdmin) -->
-        <div v-if="isSuperAdmin" class="p-4">
+        <!-- Upgrade Button (SOLO para Superadmin We collab ID 1 y solo si está activo) -->
+        <div v-if="isSuperAdminWeCollab && isRoleActive" class="p-4">
             <button
                 class="group w-full relative overflow-hidden bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 text-sm shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] active:scale-[0.98]"
                 type="button"
@@ -580,7 +772,7 @@ onUnmounted(() => {
         </div>
     </aside>
 
-    <!-- Overlay móvil -->
+    <!-- Overlay para móvil -->
     <transition
         enter-active-class="transition-opacity duration-300"
         enter-from-class="opacity-0"
@@ -598,6 +790,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Scrollbar personalizado para el aside */
 aside::-webkit-scrollbar {
     width: 6px;
 }
@@ -620,9 +813,13 @@ aside::-webkit-scrollbar-thumb:hover {
         rgba(59, 130, 246, 0.6)
     );
 }
+
+/* Animación de rotación para iconos de submenu */
 .rotate-180 {
     transform: rotate(180deg);
 }
+
+/* Transiciones para animaciones Vue */
 .v-enter-active,
 .v-leave-active {
     transition: all 0.3s ease;
@@ -631,5 +828,19 @@ aside::-webkit-scrollbar-thumb:hover {
 .v-leave-to {
     opacity: 0;
     transform: translateY(-10px);
+}
+
+/* Animación suave para el indicador de estado activo */
+@keyframes pulse-slow {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+.animate-pulse-slow {
+    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 </style>

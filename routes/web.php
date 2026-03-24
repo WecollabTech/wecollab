@@ -9,6 +9,7 @@ use App\Http\Middleware\CheckRole; // Si tienes el middleware para comprobar rol
 use App\Http\Middleware\CheckPermission;
 use App\Models\Subcategoria;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -20,14 +21,24 @@ Route::get('/', function () {
 });
 
 Route::middleware([
-    'auth:sanctum',            // Verifica que el usuario esté autenticado con Sanctum.
-    config('jetstream.auth_session'),  // Verifica que la sesión de Jetstream esté activa.
-    'verified',                // Verifica que el correo electrónico del usuario haya sido verificado.
-])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');  // Renderiza el componente Inertia llamado 'Dashboard'
-    })->name('dashboard');
-});
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified',
+])->get('/dashboard', function () {
+
+    $user = Auth::user();
+
+    $rol = optional($user->role)->nombre;
+
+    if ($rol === 'Superadmin We collab' || $rol === 'Admin We collab') {
+        return Inertia::render('Dashboard');
+    }
+
+    return Inertia::render('Usuarios');
+
+})->name('dashboard');
+
+
 
 
 Route::middleware([
