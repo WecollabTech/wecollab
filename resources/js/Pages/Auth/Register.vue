@@ -1026,9 +1026,7 @@ onMounted(async () => {
                                             />
                                         </svg>
                                         Código de
-                                        {{
-                                            form.country_name || "país"
-                                        }}
+                                        {{ form.country_name || "país" }}
                                         detectado automáticamente
                                     </p>
                                 </div>
