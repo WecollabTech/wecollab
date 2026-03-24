@@ -123,11 +123,11 @@ class CreateNewUser implements CreatesNewUsers
     // }
 
 
-
-
     public function create(array $input): User
     {
-        // Validación: solo country_code es requerido (si se envía ubicación)
+        // ====================================================================
+        // ✅ VALIDACIÓN
+        // ====================================================================
         Validator::make($input, [
             // Requeridos
             'name' => ['required', 'string', 'max:255'],
@@ -135,27 +135,35 @@ class CreateNewUser implements CreatesNewUsers
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => $this->passwordRules(),
 
-            // Ubicación: country_code requerido, resto nullable
+            // Ubicación: país requerido, estado/ciudad opcionales
             'country_code' => ['required', 'string', 'max:10'],
             'country_name' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
 
+            // 🆕 Company ID (campo directo en users, opcional, numérico)
+            'company_id' => ['nullable', 'numeric', 'min:1'],
+
             // Opcionales
             'status' => ['nullable', 'in:activo,inactivo'],
             'direccion' => ['nullable', 'string', 'max:255'],
             'fotoperfil' => ['nullable', 'file', 'image', 'mimes:jpeg,png,gif', 'max:2048'],
-            'telefono' => ['nullable', 'string', 'max:15'],
+            'telefono' => ['nullable', 'string', 'max:20'], // ↑ 20 para código internacional (+52...)
 
             // Términos
-            'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : 'nullable',
+            'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature()
+                ? ['accepted', 'required']
+                : 'nullable',
         ], [
+            // Mensajes personalizados
             'name.required' => 'El nombre es requerido',
             'apellido.required' => 'El apellido es requerido',
             'email.required' => 'El correo es requerido',
             'email.unique' => 'Este correo ya está registrado',
             'password.required' => 'La contraseña es requerida',
             'country_code.required' => 'El país es requerido',
+            'company_id.numeric' => 'El ID de compañía debe ser un número válido',
+            'company_id.min' => 'El ID de compañía debe ser mayor a 0',
             'terms.accepted' => 'Debes aceptar los términos y condiciones',
             'fotoperfil.image' => 'El archivo debe ser una imagen',
             'fotoperfil.mimes' => 'Formatos permitidos: JPEG, PNG, GIF',
@@ -163,7 +171,7 @@ class CreateNewUser implements CreatesNewUsers
         ])->validateWithBag('default');
 
         // ====================================================================
-        // GESTIÓN DE UBICACIÓN (Solo país es obligatorio)
+        // 🌍 GESTIÓN DE UBICACIÓN (País obligatorio, Estado/Ciudad opcionales)
         // ====================================================================
 
         // 1. País (SIEMPRE requerido)
@@ -193,27 +201,33 @@ class CreateNewUser implements CreatesNewUsers
         }
 
         // ====================================================================
-        // SUBIDA DE FOTO DE PERFIL
+        // 📸 SUBIDA DE FOTO DE PERFIL
         // ====================================================================
-
         $fotoPath = null;
         if (isset($input['fotoperfil']) && $input['fotoperfil'] instanceof \Illuminate\Http\UploadedFile) {
             $fotoPath = $input['fotoperfil']->store('profile-photos', 'public');
         }
 
         // ====================================================================
-        // ROL POR DEFECTO
+        // 🎭 ASIGNACIÓN DE ROL SEGÚN COMPANY_ID
         // ====================================================================
 
+        // 🆕 Determinar rol: si hay company_id → "cliente_premium", sino → "usuario"
+        $roleKey = !empty($input['company_id']) ? 'Cliente Premium' : 'usuario';
+        $roleLabel = $roleKey === 'Cliente Premium' ? 'Cliente Premium' : 'Usuario';
+
         $role = Role::firstOrCreate(
-            ['nombre' => 'usuario'],
-            ['descripcion' => 'Usuario estándar del sistema']
+            ['nombre' => $roleKey],  // nombre interno: 'cliente_premium' o 'usuario'
+            [
+                'descripcion' => $roleKey === 'cliente_premium'
+                    ? 'Cliente Premium con acceso a compañía'
+                    : 'Usuario estándar del sistema'
+            ]
         );
 
         // ====================================================================
-        // CREACIÓN DEL USUARIO
+        // 👤 CREACIÓN DEL USUARIO
         // ====================================================================
-
         $user = User::create([
             'name' => $input['name'],
             'apellido' => $input['apellido'],
@@ -224,14 +238,36 @@ class CreateNewUser implements CreatesNewUsers
             'fotoperfil' => $fotoPath,
             'telefono' => $input['telefono'] ?? null,
             'pais_id' => $pais->id,
-            'estado_id' => $estado_id,  // ✅ Puede ser null
-            'ciudad_id' => $ciudad_id,  // ✅ Puede ser null
+            'estado_id' => $estado_id,   // ✅ Puede ser null
+            'ciudad_id' => $ciudad_id,   // ✅ Puede ser null
+            'company_id' => !empty($input['company_id']) ? (int) $input['company_id'] : null,  // 🆕 Campo directo en users
             'role_id' => $role->id,
+        ]);
+
+        // ====================================================================
+        // 🔍 LOGGING PARA VERIFICAR GUARDADO CORRECTO
+        // ====================================================================
+        Log::info('✅ Usuario registrado - Verificación de datos', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'name' => $user->name . ' ' . $user->apellido,
+            'company_id' => $user->company_id,
+            'role_assigned' => [
+                'key' => $roleKey,           // 'cliente_premium' o 'usuario'
+                'label' => $roleLabel,       // 'Cliente Premium' o 'Usuario Estándar'
+                'role_id' => $role->id,
+            ],
+            'location' => [
+                'country' => $pais->nombre,
+                'state_id' => $estado_id,
+                'city_id' => $ciudad_id,
+            ],
+            'telefono' => $user->telefono,
+            'created_at' => $user->created_at,
         ]);
 
         return $user;
     }
-
 
 
 

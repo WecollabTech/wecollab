@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -20,6 +19,7 @@ return new class extends Migration
             $table->string('password');
             $table->enum('status', ['activo', 'inactivo'])->default('activo'); // Nuevo campo
             $table->string('direccion')->nullable(); // Nuevo campo
+            $table->string('company_id')->nullable();
             $table->foreignId('pais_id')->nullable()->constrained('paises')->onDelete('set null');
             $table->string('fotoperfil')->nullable(); // Nuevo campo
             $table->string('telefono')->nullable(); // Nuevo campo

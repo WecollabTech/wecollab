@@ -38,6 +38,7 @@ class User extends Authenticatable
         'fotoperfil', // Nuevo campo
         'telefono', // Nuevo campo
         'role_id', // Nuevo campo
+        'company_id',
         'pais_id', // Nuevo campo
     ];
 
@@ -87,7 +88,7 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class, 'role_id');
     }
 
-        /**
+    /**
      * Verifica si el usuario tiene un rol específico
      */
     public function hasRole($roleName)
@@ -95,15 +96,15 @@ class User extends Authenticatable
         return $this->role->nombre === $roleName;
     }
 
-        /**
+    /**
      * Verifica si el usuario tiene un permiso específico
      */
     public function hasPermission($permissionName)
     {
-        return Cache::remember("user_{$this->id}_permissions", now()->addDay(), function() {
+        return Cache::remember("user_{$this->id}_permissions", now()->addDay(), function () {
             return $this->role->permisos->pluck('nombre')->toArray();
         });
-        
+
         return in_array($permissionName, $this->getPermissions());
     }
 
@@ -128,8 +129,8 @@ class User extends Authenticatable
 
 
 
-  
-    
 
-    
+
+
+
 }

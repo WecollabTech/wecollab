@@ -25,18 +25,106 @@ const form = useForm({
     country_name: "",
     state: "",
     city: "",
+    company_id: "", // 🆕 NUEVO: ID de Compañía
     direccion: "",
     status: "activo",
 });
 
 // ============================================
-// 📍 UBICACIÓN - GEO NAMES API (Solo Países)
+// 📍 UBICACIÓN - GEO NAMES API
 // ============================================
 const GEONAMES_USERNAME = "wecollab";
-const countries = ref([]);
-const isLoading = ref({ countries: false });
+const countries = ref([]),
+    states = ref([]),
+    cities = ref([]);
+const isLoading = ref({ countries: false, states: false, cities: false });
 
-// GeoNames API - Solo Países
+// 📱 Códigos telefónicos por país (ISO code → phone code)
+const phoneCodes = {
+    AR: "+54",
+    BO: "+591",
+    BR: "+55",
+    CL: "+56",
+    CO: "+57",
+    CR: "+506",
+    CU: "+53",
+    EC: "+593",
+    SV: "+503",
+    GT: "+502",
+    HN: "+504",
+    MX: "+52",
+    NI: "+505",
+    PA: "+507",
+    PY: "+595",
+    PE: "+51",
+    DO: "+1",
+    UY: "+598",
+    VE: "+58",
+    ES: "+34",
+    US: "+1",
+    CA: "+1",
+    GB: "+44",
+    DE: "+49",
+    FR: "+33",
+    IT: "+39",
+    PT: "+351",
+    AU: "+61",
+    JP: "+81",
+    CN: "+86",
+    IN: "+91",
+    RU: "+7",
+    ZA: "+27",
+    NG: "+234",
+    KE: "+254",
+    EG: "+20",
+    SA: "+966",
+    AE: "+971",
+    IL: "+972",
+    TR: "+90",
+    GR: "+30",
+    PL: "+48",
+    NL: "+31",
+    BE: "+32",
+    SE: "+46",
+    NO: "+47",
+    DK: "+45",
+    FI: "+358",
+    IE: "+353",
+    AT: "+43",
+    CH: "+41",
+    CZ: "+420",
+    SK: "+421",
+    HU: "+36",
+    RO: "+40",
+    BG: "+359",
+    HR: "+385",
+    SI: "+386",
+    RS: "+381",
+    UA: "+380",
+    BY: "+375",
+    LT: "+370",
+    LV: "+371",
+    EE: "+372",
+    IS: "+354",
+    NZ: "+64",
+    SG: "+65",
+    MY: "+60",
+    TH: "+66",
+    PH: "+63",
+    VN: "+84",
+    ID: "+62",
+    KR: "+82",
+    TW: "+886",
+    HK: "+852",
+};
+
+// Obtener código telefónico del país seleccionado
+const currentPhoneCode = computed(() => {
+    if (!form.country_code) return "";
+    return phoneCodes[form.country_code] || "";
+});
+
+// GeoNames API - Países
 const fetchCountries = async () => {
     isLoading.value.countries = true;
     try {
@@ -62,6 +150,90 @@ const fetchCountries = async () => {
     }
 };
 
+// GeoNames API - Estados
+const fetchStates = async (countryCode) => {
+    if (!countryCode) {
+        states.value = [];
+        form.state = "";
+        cities.value = [];
+        form.city = "";
+        return;
+    }
+    isLoading.value.states = true;
+    try {
+        const selectedCountry = countries.value.find(
+            (c) => c.code === countryCode,
+        );
+        if (!selectedCountry?.geonameId)
+            throw new Error("GeonameId del país no encontrado");
+        const response = await fetch(
+            `https://secure.geonames.org/childrenJSON?geonameId=${selectedCountry.geonameId}&maxRows=100&username=${GEONAMES_USERNAME}`,
+        );
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+        const data = await response.json();
+        states.value = data.geonames
+            ? data.geonames
+                  .map((r) => ({ code: r.geonameId, name: r.name }))
+                  .sort((a, b) => a.name.localeCompare(b.name))
+            : [];
+    } catch (error) {
+        console.error("Error estados:", error);
+        states.value = [];
+    } finally {
+        isLoading.value.states = false;
+    }
+};
+
+// GeoNames API - Ciudades
+const fetchCities = async (stateName) => {
+    if (!stateName) {
+        cities.value = [];
+        form.city = "";
+        return;
+    }
+    isLoading.value.cities = true;
+    try {
+        const selectedState = states.value.find((s) => s.name === stateName);
+        if (!selectedState?.code)
+            throw new Error("GeonameId del estado no encontrado");
+        const response = await fetch(
+            `https://secure.geonames.org/childrenJSON?geonameId=${selectedState.code}&maxRows=100&username=${GEONAMES_USERNAME}&featureClass=P`,
+        );
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+        const data = await response.json();
+        cities.value = data.geonames
+            ? data.geonames
+                  .map((c) => ({ code: c.geonameId, name: c.name }))
+                  .sort((a, b) => a.name.localeCompare(b.name))
+            : [];
+    } catch (error) {
+        console.error("Error ciudades:", error);
+        cities.value = [];
+    } finally {
+        isLoading.value.cities = false;
+    }
+};
+
+// Watchers para ubicación en cascada
+watch(
+    () => form.country_code,
+    (newCode) => {
+        form.state = "";
+        form.city = "";
+        const selected = countries.value.find((c) => c.code === newCode);
+        form.country_name = selected ? selected.name : "";
+        fetchStates(newCode);
+    },
+);
+
+watch(
+    () => form.state,
+    (newState) => {
+        form.city = "";
+        if (newState) fetchCities(newState);
+    },
+);
+
 // ============================================
 // 📍 REFERENCIAS PARA SCROLL
 // ============================================
@@ -69,19 +241,19 @@ const formContainerRef = ref(null);
 const headerRef = ref(null);
 
 // ============================================
-// ➕ WIZARD LOGIC - 4 PASOS (Ubicación en paso 2)
+// ➕ WIZARD LOGIC - 4 PASOS
 // ============================================
 const currentStep = ref(1);
 const totalSteps = 4;
 const hasNavigatedToError = ref(false);
 const stepErrors = ref({});
 
-// Campos por paso (Ubicación en paso 2, Estado/Ciudad deshabilitados)
+// Campos por paso (company_id agregado al paso 4 - Finalizar)
 const stepFields = {
-    1: ["name", "apellido", "email", "telefono"],
-    2: ["country_code"], // Solo país es requerido, state/city están deshabilitados
+    1: ["name", "apellido", "email"],
+    2: ["country_code", "state", "city", "telefono"],
     3: ["password", "password_confirmation"],
-    4: ["terms", "direccion", "status"],
+    4: ["terms", "direccion", "status", "company_id"], // 🆕 company_id aquí
 };
 
 const getStepForField = (fieldName) => {
@@ -235,6 +407,11 @@ const validateCurrentStep = () => {
             stepErrors.value[field] = "Selecciona un país";
             isValid = false;
         }
+        // 🆕 Validación opcional para company_id (si se proporciona, debe ser numérico)
+        if (field === "company_id" && value && !/^\d+$/.test(value)) {
+            stepErrors.value[field] = "El ID de compañía debe ser numérico";
+            isValid = false;
+        }
     });
     return isValid;
 };
@@ -247,15 +424,15 @@ const steps = computed(() => [
         id: 1,
         title: "Personal",
         icon: "👤",
-        fields: ["name", "apellido", "email", "telefono"],
+        fields: ["name", "apellido", "email"],
         description: "Comienza con tus datos básicos",
     },
     {
         id: 2,
         title: "Ubicación",
         icon: "🌍",
-        fields: ["country_code", "state", "city"],
-        description: "Selecciona tu país de residencia",
+        fields: ["country_code", "state", "city", "telefono"],
+        description: "Selecciona tu ubicación y teléfono",
     },
     {
         id: 3,
@@ -268,7 +445,7 @@ const steps = computed(() => [
         id: 4,
         title: "Finalizar",
         icon: "✅",
-        fields: ["terms", "direccion", "status"],
+        fields: ["terms", "direccion", "status", "company_id"],
         description: "Revisa y confirma",
     },
 ]);
@@ -319,13 +496,25 @@ const hasStepErrors = (stepId) => {
 };
 
 // ============================================
-// 🚀 SUBMIT CON SCROLL EN ERROR
+// 🚀 SUBMIT CON TELÉFONO + CÓDIGO DE PAÍS
 // ============================================
 const submit = () => {
     if (!validateCurrentStep()) {
         scrollToForm({ offset: -50 });
         return;
     }
+
+    // 📱 Concatenar código de país + teléfono antes de enviar
+    if (currentPhoneCode.value && form.telefono) {
+        const numeroLimpio = form.telefono.replace(/\D/g, "");
+        form.telefono = currentPhoneCode.value + numeroLimpio;
+    }
+
+    // 🏢 Limpiar company_id si está vacío (evitar enviar string vacío)
+    if (!form.company_id || form.company_id.trim() === "") {
+        form.company_id = null;
+    }
+
     form.post(route("register"), {
         forceFormData: true,
         onSuccess: () => {
@@ -612,13 +801,6 @@ onMounted(async () => {
                                                 autocomplete: 'username',
                                                 type: 'email',
                                             },
-                                            telefono: {
-                                                label: 'Teléfono',
-                                                placeholder: 'Próximamente',
-                                                autocomplete: 'tel',
-                                                type: 'tel',
-                                                disabled: true,
-                                            },
                                         }"
                                         :key="key"
                                     >
@@ -626,9 +808,6 @@ onMounted(async () => {
                                             :for="key"
                                             :value="cfg.label"
                                             class="text-gray-700 font-semibold text-sm mb-2"
-                                            :class="{
-                                                'text-gray-400': cfg.disabled,
-                                            }"
                                         />
                                         <TextInput
                                             :id="key"
@@ -637,7 +816,6 @@ onMounted(async () => {
                                             :required="!cfg.disabled"
                                             :autocomplete="cfg.autocomplete"
                                             :autofocus="cfg.autofocus"
-                                            :disabled="cfg.disabled"
                                             :aria-invalid="
                                                 !!(
                                                     form.errors[key] ||
@@ -668,122 +846,75 @@ onMounted(async () => {
                                             :message="form.errors[key]"
                                             role="alert"
                                         />
-                                        <p
-                                            v-if="cfg.disabled"
-                                            class="text-xs text-amber-600 mt-2 flex items-center gap-1"
-                                        >
-                                            <svg
-                                                class="w-3.5 h-3.5"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fill-rule="evenodd"
-                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z"
-                                                    clip-rule="evenodd"
-                                                />
-                                            </svg>
-                                            Campo opcional - Próximamente
-                                        </p>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- PASO 2: Ubicación (Estado/Ciudad DESHABILITADOS) -->
+                            <!-- PASO 2: Ubicación + Teléfono con Código de País -->
                             <div
                                 v-else-if="currentStep === 2"
                                 key="step2"
                                 class="space-y-6"
                             >
-                                <div
-                                    class="grid grid-cols-1 md:grid-cols-3 gap-6"
-                                >
-                                    <!-- País (Obligatorio) -->
-                                    <div>
-                                        <InputLabel
-                                            value="País *"
-                                            class="text-gray-700 font-semibold text-sm mb-2"
-                                        />
-                                        <div class="relative mt-0">
-                                            <select
-                                                id="country_code"
-                                                v-model="form.country_code"
-                                                required
-                                                :disabled="
-                                                    isLoading.countries ||
-                                                    !countries.length
-                                                "
-                                                :aria-invalid="
-                                                    !!(
-                                                        form.errors
-                                                            .country_code ||
-                                                        stepErrors.country_code
-                                                    )
-                                                "
-                                                class="block w-full rounded-2xl border-2 border-gray-200 shadow-sm py-4 px-5 pr-10 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all disabled:bg-gray-50 disabled:text-gray-400 appearance-none text-base"
-                                                :class="{
-                                                    'border-red-300 ring-4 ring-red-50':
-                                                        form.errors
-                                                            .country_code ||
-                                                        stepErrors.country_code,
-                                                }"
+                                <!-- País -->
+                                <div class="mb-6">
+                                    <InputLabel
+                                        value="País *"
+                                        class="text-gray-700 font-semibold text-sm mb-2"
+                                    />
+                                    <div class="relative mt-0">
+                                        <select
+                                            id="country_code"
+                                            v-model="form.country_code"
+                                            required
+                                            :disabled="
+                                                isLoading.countries ||
+                                                !countries.length
+                                            "
+                                            :aria-invalid="
+                                                !!(
+                                                    form.errors.country_code ||
+                                                    stepErrors.country_code
+                                                )
+                                            "
+                                            class="block w-full rounded-2xl border-2 border-gray-200 shadow-sm py-4 px-5 pr-10 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all disabled:bg-gray-50 disabled:text-gray-400 appearance-none text-base"
+                                            :class="{
+                                                'border-red-300 ring-4 ring-red-50':
+                                                    form.errors.country_code ||
+                                                    stepErrors.country_code,
+                                            }"
+                                        >
+                                            <option value="" disabled>
+                                                Seleccione un país
+                                            </option>
+                                            <option
+                                                v-for="c in countries"
+                                                :key="c.code"
+                                                :value="c.code"
                                             >
-                                                <option value="" disabled>
-                                                    Seleccione un país
-                                                </option>
-                                                <option
-                                                    v-for="c in countries"
-                                                    :key="c.code"
-                                                    :value="c.code"
-                                                >
-                                                    {{ c.name }}
-                                                </option>
-                                            </select>
-                                            <div
-                                                class="absolute inset-y-0 right-4 flex items-center pointer-events-none"
-                                            >
-                                                <svg
-                                                    v-if="!isLoading.countries"
-                                                    class="w-5 h-5 text-gray-400"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path
-                                                        stroke-linecap="round"
-                                                        stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M19 9l-7 7-7-7"
-                                                    />
-                                                </svg>
-                                                <svg
-                                                    v-else
-                                                    class="animate-spin w-5 h-5 text-indigo-500"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <circle
-                                                        class="opacity-25"
-                                                        cx="12"
-                                                        cy="12"
-                                                        r="10"
-                                                        stroke="currentColor"
-                                                        stroke-width="4"
-                                                    />
-                                                    <path
-                                                        class="opacity-75"
-                                                        fill="currentColor"
-                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                                    />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                        <p
-                                            v-if="isLoading.countries"
-                                            class="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-pulse"
+                                                {{ c.name }}
+                                            </option>
+                                        </select>
+                                        <div
+                                            class="absolute inset-y-0 right-4 flex items-center pointer-events-none"
                                         >
                                             <svg
-                                                class="w-3.5 h-3.5 animate-spin"
+                                                v-if="!isLoading.countries"
+                                                class="w-5 h-5 text-gray-400"
                                                 fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M19 9l-7 7-7-7"
+                                                />
+                                            </svg>
+                                            <svg
+                                                v-else
+                                                class="animate-spin w-5 h-5 text-indigo-500"
                                                 viewBox="0 0 24 24"
                                             >
                                                 <circle
@@ -800,90 +931,314 @@ onMounted(async () => {
                                                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                                                 />
                                             </svg>
-                                            Cargando países...
-                                        </p>
-                                        <p
-                                            v-if="
-                                                stepErrors.country_code ||
-                                                form.errors.country_code
-                                            "
-                                            class="text-sm text-red-600 mt-2"
-                                            role="alert"
-                                        >
-                                            {{
-                                                stepErrors.country_code ||
-                                                form.errors.country_code
-                                            }}
-                                        </p>
+                                        </div>
                                     </div>
+                                    <p
+                                        v-if="isLoading.countries"
+                                        class="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-pulse"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5 animate-spin"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                class="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                stroke-width="4"
+                                            />
+                                            <path
+                                                class="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                            />
+                                        </svg>
+                                        Cargando países...
+                                    </p>
+                                    <p
+                                        v-if="
+                                            stepErrors.country_code ||
+                                            form.errors.country_code
+                                        "
+                                        class="text-sm text-red-600 mt-2"
+                                        role="alert"
+                                    >
+                                        {{
+                                            stepErrors.country_code ||
+                                            form.errors.country_code
+                                        }}
+                                    </p>
+                                </div>
 
-                                    <!-- Estado/Provincia (DESHABILITADO - COMO TELÉFONO) -->
-                                    <div>
-                                        <InputLabel
-                                            value="Estado/Provincia"
-                                            class="text-gray-400 font-semibold text-sm mb-2"
-                                        />
+                                <!-- Teléfono con Código de País Automático -->
+                                <div class="mb-6">
+                                    <InputLabel
+                                        value="Teléfono"
+                                        class="text-gray-700 font-semibold text-sm mb-2"
+                                    />
+                                    <div class="flex gap-3">
+                                        <!-- Código de País (Auto) -->
+                                        <div class="w-24 shrink-0">
+                                            <div
+                                                class="mt-0 block w-full rounded-2xl border-2 border-gray-200 bg-gray-100 text-gray-700 font-bold text-center py-4 px-3 text-base"
+                                                :class="{
+                                                    'bg-indigo-100 border-indigo-300 text-indigo-700':
+                                                        currentPhoneCode,
+                                                }"
+                                            >
+                                                {{ currentPhoneCode || "—" }}
+                                            </div>
+                                        </div>
+                                        <!-- Número de Teléfono -->
+                                        <div class="flex-1 relative">
+                                            <TextInput
+                                                id="telefono"
+                                                v-model="form.telefono"
+                                                type="tel"
+                                                autocomplete="tel"
+                                                :aria-invalid="
+                                                    !!(
+                                                        form.errors.telefono ||
+                                                        stepErrors.telefono
+                                                    )
+                                                "
+                                                class="mt-0 block w-full rounded-2xl border-2 border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all py-4 px-5 text-base"
+                                                placeholder="Ingresa tu número"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p
+                                        v-if="currentPhoneCode"
+                                        class="text-xs text-green-600 mt-2 flex items-center gap-1"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fill-rule="evenodd"
+                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                clip-rule="evenodd"
+                                            />
+                                        </svg>
+                                        Código de
+                                        {{
+                                            form.country_name || "país"
+                                        }}
+                                        detectado automáticamente
+                                    </p>
+                                </div>
+
+                                <!-- Estado/Provincia -->
+                                <div>
+                                    <InputLabel
+                                        value="Estado/Provincia"
+                                        class="text-gray-700 font-semibold text-sm mb-2"
+                                    />
+                                    <div class="relative mt-0">
                                         <select
                                             id="state"
                                             v-model="form.state"
-                                            disabled
-                                            class="mt-0 block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-400 shadow-sm py-4 px-5 pr-10 cursor-not-allowed appearance-none text-base"
+                                            :disabled="
+                                                !form.country_code ||
+                                                isLoading.states ||
+                                                !states.length
+                                            "
+                                            class="block w-full rounded-2xl border-2 border-gray-200 shadow-sm py-4 px-5 pr-10 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all disabled:bg-gray-50 disabled:text-gray-400 appearance-none text-base"
                                         >
-                                            <option value="">
-                                                Próximamente disponible
+                                            <option value="" disabled>
+                                                {{
+                                                    !form.country_code
+                                                        ? "Primero selecciona país"
+                                                        : isLoading.states
+                                                          ? "Cargando..."
+                                                          : !states.length
+                                                            ? "Sin resultados"
+                                                            : "Seleccione un estado"
+                                                }}
+                                            </option>
+                                            <option
+                                                v-for="s in states"
+                                                :key="s.code"
+                                                :value="s.name"
+                                            >
+                                                {{ s.name }}
                                             </option>
                                         </select>
-                                        <p
-                                            class="text-xs text-gray-400 mt-2 flex items-center gap-1"
+                                        <div
+                                            class="absolute inset-y-0 right-4 flex items-center pointer-events-none"
                                         >
                                             <svg
-                                                class="w-3.5 h-3.5"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
+                                                v-if="
+                                                    !isLoading.states &&
+                                                    states.length
+                                                "
+                                                class="w-5 h-5 text-gray-400"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
                                             >
                                                 <path
-                                                    fill-rule="evenodd"
-                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z"
-                                                    clip-rule="evenodd"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M19 9l-7 7-7-7"
                                                 />
                                             </svg>
-                                            Campo opcional - Próximamente
-                                        </p>
+                                            <svg
+                                                v-if="isLoading.states"
+                                                class="animate-spin w-5 h-5 text-indigo-500"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <circle
+                                                    class="opacity-25"
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="10"
+                                                    stroke="currentColor"
+                                                    stroke-width="4"
+                                                />
+                                                <path
+                                                    class="opacity-75"
+                                                    fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                                />
+                                            </svg>
+                                        </div>
                                     </div>
+                                    <p
+                                        v-if="isLoading.states"
+                                        class="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-pulse"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5 animate-spin"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                class="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                stroke-width="4"
+                                            />
+                                            <path
+                                                class="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                            />
+                                        </svg>
+                                        Cargando estados...
+                                    </p>
+                                </div>
 
-                                    <!-- Ciudad (DESHABILITADO - COMO TELÉFONO) -->
-                                    <div>
-                                        <InputLabel
-                                            value="Ciudad"
-                                            class="text-gray-400 font-semibold text-sm mb-2"
-                                        />
+                                <!-- Ciudad -->
+                                <div>
+                                    <InputLabel
+                                        value="Ciudad"
+                                        class="text-gray-700 font-semibold text-sm mb-2"
+                                    />
+                                    <div class="relative mt-0">
                                         <select
                                             id="city"
                                             v-model="form.city"
-                                            disabled
-                                            class="mt-0 block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-400 shadow-sm py-4 px-5 pr-10 cursor-not-allowed appearance-none text-base"
+                                            :disabled="
+                                                !form.state ||
+                                                isLoading.cities ||
+                                                !cities.length
+                                            "
+                                            class="block w-full rounded-2xl border-2 border-gray-200 shadow-sm py-4 px-5 pr-10 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all disabled:bg-gray-50 disabled:text-gray-400 appearance-none text-base"
                                         >
-                                            <option value="">
-                                                Próximamente disponible
+                                            <option value="" disabled>
+                                                {{
+                                                    !form.state
+                                                        ? "Primero selecciona estado"
+                                                        : isLoading.cities
+                                                          ? "Cargando..."
+                                                          : !cities.length
+                                                            ? "Sin resultados"
+                                                            : "Seleccione una ciudad"
+                                                }}
+                                            </option>
+                                            <option
+                                                v-for="city in cities"
+                                                :key="city.code"
+                                                :value="city.name"
+                                            >
+                                                {{ city.name }}
                                             </option>
                                         </select>
-                                        <p
-                                            class="text-xs text-gray-400 mt-2 flex items-center gap-1"
+                                        <div
+                                            class="absolute inset-y-0 right-4 flex items-center pointer-events-none"
                                         >
                                             <svg
-                                                class="w-3.5 h-3.5"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
+                                                v-if="
+                                                    !isLoading.cities &&
+                                                    cities.length
+                                                "
+                                                class="w-5 h-5 text-gray-400"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
                                             >
                                                 <path
-                                                    fill-rule="evenodd"
-                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z"
-                                                    clip-rule="evenodd"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M19 9l-7 7-7-7"
                                                 />
                                             </svg>
-                                            Campo opcional - Próximamente
-                                        </p>
+                                            <svg
+                                                v-if="isLoading.cities"
+                                                class="animate-spin w-5 h-5 text-indigo-500"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <circle
+                                                    class="opacity-25"
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="10"
+                                                    stroke="currentColor"
+                                                    stroke-width="4"
+                                                />
+                                                <path
+                                                    class="opacity-75"
+                                                    fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                                />
+                                            </svg>
+                                        </div>
                                     </div>
+                                    <p
+                                        v-if="isLoading.cities"
+                                        class="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-pulse"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5 animate-spin"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                class="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                stroke-width="4"
+                                            />
+                                            <path
+                                                class="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                            />
+                                        </svg>
+                                        Cargando ciudades...
+                                    </p>
                                 </div>
                             </div>
 
@@ -1075,12 +1430,74 @@ onMounted(async () => {
                                 </div>
                             </div>
 
-                            <!-- PASO 4: Finalizar -->
+                            <!-- PASO 4: Finalizar + Company ID -->
                             <div
                                 v-else-if="currentStep === 4"
                                 key="step4"
                                 class="space-y-6"
                             >
+                                <!-- 🆕 ID de Compañía -->
+                                <div
+                                    class="mb-6 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100"
+                                >
+                                    <InputLabel
+                                        value="ID de Compañía"
+                                        class="text-gray-700 font-semibold text-sm mb-2"
+                                    />
+                                    <TextInput
+                                        id="company_id"
+                                        v-model="form.company_id"
+                                        type="text"
+                                        autocomplete="off"
+                                        :aria-invalid="
+                                            !!(
+                                                form.errors.company_id ||
+                                                stepErrors.company_id
+                                            )
+                                        "
+                                        :aria-describedby="`company_id-error`"
+                                        class="mt-0 block w-full rounded-2xl border-2 border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all py-4 px-5 text-base"
+                                        :class="{
+                                            'border-red-300 ring-4 ring-red-50':
+                                                form.errors.company_id ||
+                                                stepErrors.company_id,
+                                        }"
+                                        placeholder="Ej: 12345 (Opcional)"
+                                    />
+                                    <p
+                                        v-if="stepErrors.company_id"
+                                        :id="`company_id-error`"
+                                        class="text-sm text-red-600 mt-2"
+                                        role="alert"
+                                    >
+                                        {{ stepErrors.company_id }}
+                                    </p>
+                                    <InputError
+                                        v-else
+                                        :id="`company_id-error`"
+                                        class="text-sm mt-2"
+                                        :message="form.errors.company_id"
+                                        role="alert"
+                                    />
+                                    <p
+                                        class="text-xs text-indigo-600 mt-2 flex items-center gap-1"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fill-rule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                                clip-rule="evenodd"
+                                            />
+                                        </svg>
+                                        Si proporcionas un ID, se te asignará el
+                                        rol <strong>Cliente Admin</strong>
+                                    </p>
+                                </div>
+
                                 <!-- Resumen -->
                                 <div
                                     class="bg-gradient-to-br from-gray-50 via-slate-50 to-indigo-50 rounded-3xl p-6 border-2 border-gray-200"
@@ -1121,9 +1538,12 @@ onMounted(async () => {
                                                 >Teléfono</span
                                             >
                                             <p class="font-bold text-sm">
+                                                {{ currentPhoneCode }}
                                                 {{
-                                                    form.telefono ||
-                                                    "No especificado"
+                                                    form.telefono?.replace(
+                                                        currentPhoneCode,
+                                                        "",
+                                                    ) || "No especificado"
                                                 }}
                                             </p>
                                         </div>
@@ -1146,10 +1566,11 @@ onMounted(async () => {
                                             <span class="text-xs text-gray-500"
                                                 >Estado</span
                                             >
-                                            <p
-                                                class="font-bold text-sm text-gray-400"
-                                            >
-                                                Próximamente
+                                            <p class="font-bold text-sm">
+                                                {{
+                                                    form.state ||
+                                                    "No especificado"
+                                                }}
                                             </p>
                                         </div>
                                         <div
@@ -1158,14 +1579,40 @@ onMounted(async () => {
                                             <span class="text-xs text-gray-500"
                                                 >Ciudad</span
                                             >
-                                            <p
-                                                class="font-bold text-sm text-gray-400"
+                                            <p class="font-bold text-sm">
+                                                {{
+                                                    form.city ||
+                                                    "No especificado"
+                                                }}
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="bg-white rounded-2xl p-4 shadow-sm border"
+                                            :class="{
+                                                'ring-2 ring-indigo-200 bg-indigo-50':
+                                                    form.company_id,
+                                            }"
+                                        >
+                                            <span class="text-xs text-gray-500"
+                                                >Compañía</span
                                             >
-                                                Próximamente
+                                            <p
+                                                class="font-bold text-sm"
+                                                :class="{
+                                                    'text-indigo-700':
+                                                        form.company_id,
+                                                }"
+                                            >
+                                                {{
+                                                    form.company_id
+                                                        ? `ID: ${form.company_id} 🏢`
+                                                        : "No especificado"
+                                                }}
                                             </p>
                                         </div>
                                     </div>
                                 </div>
+
                                 <!-- Términos -->
                                 <section
                                     v-if="
@@ -1235,6 +1682,7 @@ onMounted(async () => {
                                         />
                                     </div>
                                 </section>
+
                                 <!-- Dirección (Disabled) -->
                                 <section class="space-y-4 opacity-60">
                                     <h3 class="text-sm font-bold text-gray-500">
