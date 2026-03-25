@@ -21,7 +21,18 @@ Route::apiResource('permisos', PermisoController::class);
 Route::apiResource('categorias', CategoriaController::class);
 Route::apiResource('subcategorias', SubcategoriaController::class);
 
-Route::apiResource('tutoriales', TutorialController::class);
+// routes/api.php - SIN cambiar el controller
+Route::get('/tutoriales', [TutorialController::class, 'index'])->name('tutoriales.index');
+Route::post('/tutoriales', [TutorialController::class, 'store'])->name('tutoriales.store');
+
+// ✅ show usa {tutorial} para model binding
+Route::get('/tutoriales/{tutorial}', [TutorialController::class, 'show'])->name('tutoriales.show');
+
+// ⚠️ update/destroy usan {id} porque tu controller espera $id
+Route::put('/tutoriales/{id}', [TutorialController::class, 'update'])->name('tutoriales.update');
+// Route::patch('/tutoriales/{id}', [TutorialController::class, 'update'])->name('tutoriales.update.patch');
+Route::delete('/tutoriales/{id}', [TutorialController::class, 'destroy'])->name('tutoriales.destroy');
+
 Route::get('/usuarios', function () {
     return User::all();
 });

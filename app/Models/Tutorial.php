@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Models;
-
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -31,7 +31,12 @@ class Tutorial extends Model
         'updated_at' => 'datetime:Y-m-d H:i:s',
     ];
 
-    
+    protected function url(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $value ? trim($value) : null,
+        );
+    }
 
     /**
      * Relación con la subcategoría.

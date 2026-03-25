@@ -1943,19 +1943,22 @@ const editTutorial = (id) => {
                                 class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 required
                             >
-                                <option value="Superadministrador">
-                                    Superadministrador
+                                <option value="Superadmin We collab">
+                                    Superadmin We collab
                                 </option>
-                                <option value="Administrador">
-                                    Administrador
+                                <option value="Admin We collab">
+                                    Admin We collab
                                 </option>
-                                <option value="ClienteAdmin">
+                                <option value="Suscriptor SLC">
+                                    Suscriptor SLC
+                                </option>
+                                <option value="Cliente Admin">
                                     Cliente Admin
                                 </option>
-                                <option value="ClienteSuscriptor">
-                                    Cliente Suscriptor
+                                <option value="Cliente Premium">
+                                    Cliente Premium
                                 </option>
-                                <option value="UsuarioPúblico">
+                                <option value="Usuario Publico">
                                     Usuario Público
                                 </option>
                                 <option value="Prospecto">Prospecto</option>

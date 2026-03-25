@@ -66,7 +66,7 @@ class TutorialController extends Controller
                 'descripcion' => 'nullable|string',
                 'tipo_material' => 'required|in:video,manual,guia,post,triptico',
                 'formato' => 'required|in:pdf,word,mp4',
-                'alcance' => 'required|in:Superadministrador,Administrador,ClienteAdmin,ClienteSuscriptor,UsuarioPúblico,Prospecto',
+                'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Publico,Prospecto',
                 'estado' => 'required|in:activo,inactivo',
                 'url' => 'nullable|url|max:500',
                 'observacion' => 'nullable|string',
@@ -116,66 +116,75 @@ class TutorialController extends Controller
 
 
 
-    /**
-     * Display the specified tutorial.
-     *
-     * @param  Tutorial  $tutorial
-     * @return JsonResponse
-     */
     public function show(Tutorial $tutorial): JsonResponse
     {
-        return response()->json(['data' => $tutorial], 200);
+        if ($tutorial->estado !== 'activo') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tutorial no disponible'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $tutorial
+        ], 200);
     }
 
 
-    public function update(Request $request, $id)
+
+
+
+    public function update(Request $request, $id): JsonResponse
     {
-        return DB::transaction(function () use ($request, $id) {
-            try {
-                $tutorial = Tutorial::find($id);
+        try {
+            $tutorial = Tutorial::find($id);
 
-                if (!$tutorial) {
-                    Log::error("Tutorial no encontrado para actualizar", ['id' => $id]);
-                    return response()->json(['message' => 'Tutorial no encontrado'], 404);
-                }
-
-                $validated = $request->validate([
-                    'titulo' => 'required|string|max:255',
-                    'descripcion' => 'required|string',
-                    'tipo_material' => 'required|string|max:100',
-                    'formato' => 'required|string|max:50',
-                    'alcance' => 'required|string|max:50',
-                    'estado' => 'required|string|in:activo,inactivo',
-                    'url' => 'nullable|url',
-                    'observacion' => 'nullable|string',
-                    'subcategoria_id' => 'required|exists:subcategorias,id',
-                    'user_id' => 'nullable|exists:users,id',
-                ]);
-
-                $tutorial->update($validated);
-
-                Log::info("Tutorial actualizado correctamente", ['id' => $tutorial->id]);
-
-                return response()->json($tutorial);
-
-            } catch (\Illuminate\Validation\ValidationException $e) {
+            if (!$tutorial) {
                 return response()->json([
-                    'message' => 'Error de validación',
-                    'errors' => $e->errors()
-                ], 422);
-
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error("Error al actualizar tutorial", [
-                    'id' => $id,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                return response()->json([
-                    'message' => 'Error interno del servidor'
-                ], 500);
+                    'message' => 'Tutorial no encontrado'
+                ], 404);
             }
-        });
+
+            $validated = $request->validate([
+                'titulo' => 'required|string|max:100|unique:tutoriales,titulo,' . $tutorial->id,
+                'descripcion' => 'nullable|string',
+                'tipo_material' => 'required|in:video,manual,guia,post,triptico',
+                'formato' => 'required|in:pdf,word,mp4',
+                'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Publico,Prospecto',
+                'estado' => 'required|in:activo,inactivo',
+                'url' => 'nullable|url|max:500',
+                'observacion' => 'nullable|string',
+                'subcategoria_id' => 'nullable|exists:subcategorias,id',
+            ], [
+                'subcategoria_id.exists' => 'La subcategoría seleccionada no existe',
+                'alcance.in' => 'El valor de alcance no es válido',
+                'titulo.unique' => 'Ya existe un tutorial con este título',
+            ]);
+
+            // ✅ Convertir vacío a null
+            if (empty($validated['subcategoria_id'])) {
+                $validated['subcategoria_id'] = null;
+            }
+
+            $tutorial->update($validated);
+
+            return response()->json([
+                'message' => 'Tutorial actualizado exitosamente',
+                'data' => $tutorial
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+
+        } catch (\Exception $e) {
+            Log::error('Error al actualizar tutorial: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Error interno del servidor',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
     }
 
 

@@ -71,7 +71,7 @@ onUnmounted(() => {
         <Head :title="title" />
         <Banner />
 
-        <!-- ==================== SIDEBAR ==================== -->
+        <!-- ==================== SIDEBAR (FIJO) ==================== -->
         <Sidebar
             :showingNavigationDropdown="showingNavigationDropdown"
             @update:showingNavigationDropdown="
@@ -79,11 +79,12 @@ onUnmounted(() => {
             "
         />
 
-        <!-- ==================== MAIN CONTENT ==================== -->
+        <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
         <div class="flex-1 flex flex-col min-w-0">
             <!-- ==================== TOP NAVBAR ==================== -->
+            <!-- ✅ Agregado lg:ml-72 para no quedar detrás del sidebar fijo -->
             <nav
-                class="bg-gradient-to-br from-[#1a3080] via-[#223e9c] to-[#1a3080] text-white backdrop-blur-xl border-b border-white/10 sticky top-0 z-40 transition-all duration-300"
+                class="bg-gradient-to-br from-[#1a3080] via-[#223e9c] to-[#1a3080] text-white backdrop-blur-xl border-b border-white/10 sticky top-0 z-40 transition-all duration-300 lg:ml-72"
                 :class="{
                     'shadow-2xl shadow-blue-900/40 backdrop-blur-2xl':
                         isScrolled,
@@ -174,7 +175,7 @@ onUnmounted(() => {
                                 >
                             </button>
 
-                            <!-- 👤 PERFIL DROPDOWN (Estilo Sidebar) -->
+                            <!-- 👤 PERFIL DROPDOWN -->
                             <div class="relative" style="z-index: 99999">
                                 <Dropdown align="right" width="48">
                                     <template #trigger>
@@ -185,7 +186,6 @@ onUnmounted(() => {
                                         >
                                             <!-- Avatar con efectos -->
                                             <div class="relative">
-                                                <!-- Glow effect al hover -->
                                                 <div
                                                     class="absolute inset-0 bg-cyan-400/30 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                                                 ></div>
@@ -249,7 +249,7 @@ onUnmounted(() => {
                                         </button>
                                     </template>
 
-                                    <!-- ✨ DROPDOWN CONTENT (Estilo Sidebar) ✨ -->
+                                    <!-- DROPDOWN CONTENT -->
                                     <template #content>
                                         <div class="py-1 min-w-64">
                                             <!-- Header con Info de Usuario -->
@@ -259,7 +259,6 @@ onUnmounted(() => {
                                                 <div
                                                     class="flex items-center gap-3"
                                                 >
-                                                    <!-- Avatar pequeño en dropdown -->
                                                     <img
                                                         :src="
                                                             $page.props.auth
@@ -288,7 +287,6 @@ onUnmounted(() => {
                                                                     .user?.email
                                                             }}
                                                         </p>
-                                                        <!-- Badge de Rol -->
                                                         <span
                                                             v-if="
                                                                 $page.props.auth
@@ -307,7 +305,6 @@ onUnmounted(() => {
 
                                             <!-- Links del Menú -->
                                             <div class="py-1">
-                                                <!-- 👤 Mi Perfil -->
                                                 <DropdownLink
                                                     :href="
                                                         safeRoute(
@@ -325,7 +322,6 @@ onUnmounted(() => {
                                                     >
                                                 </DropdownLink>
 
-                                                <!-- ⚙️ Configuración (opcional) -->
                                                 <DropdownLink
                                                     v-if="
                                                         $page.props.jetstream
@@ -350,7 +346,6 @@ onUnmounted(() => {
                                                     >
                                                 </DropdownLink>
 
-                                                <!-- 🔑 API Tokens (Jetstream) -->
                                                 <DropdownLink
                                                     v-if="
                                                         $page.props.jetstream
@@ -404,10 +399,10 @@ onUnmounted(() => {
                 </div>
             </nav>
 
-            <!-- ==================== HERO SECTION ==================== -->
+            <!-- ==================== HERO SECTION (Opcional) ==================== -->
             <!-- <HeroSection :userName="$page.props.auth.user.name" /> -->
 
-            <!-- ==================== MOBILE MENU ==================== -->
+            <!-- ==================== MOBILE MENU OVERLAY ==================== -->
             <div
                 :class="{
                     block: showingNavigationDropdown,
@@ -550,16 +545,22 @@ onUnmounted(() => {
             </div>
 
             <!-- ==================== PAGE CONTENT ==================== -->
+
+            <!-- ✅ Header con lg:ml-72 para compensar sidebar fijo -->
             <header
                 v-if="$slots.header"
-                class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-300"
+                class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-all duration-300 lg:ml-72"
             >
                 <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                     <slot name="header" />
                 </div>
             </header>
-            <main class="flex-1 px-4 sm:px-6 lg:px-8 py-6">
-                <div class="max-w-7xl mx-auto w-full">
+
+            <!-- ✅ Main con lg:ml-72 para compensar sidebar fijo -->
+            <main
+                class="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:ml-72 transition-all duration-300 min-h-[calc(100vh-140px)]"
+            >
+                <div class="max-w-9xl mx-auto w-full">
                     <slot />
                 </div>
             </main>
@@ -613,11 +614,10 @@ onUnmounted(() => {
     }
 }
 
-/* Dropdown: Z-Index máximo y posición fija */
+/* Dropdown: Z-Index máximo */
 :deep(.dropdown-content),
 :deep([data-dropdown]) {
     z-index: 999999 !important;
-    position: fixed !important;
 }
 
 /* Animación de entrada/salida del dropdown */

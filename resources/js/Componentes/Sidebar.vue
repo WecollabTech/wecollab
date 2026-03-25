@@ -71,13 +71,8 @@ const isRoleActive = computed(() => userRole.value?.estado === "activo");
 // 🔒 VALIDACIÓN DE ACCESO (FAIL-CLOSED - Seguro por defecto)
 // ─────────────────────────────────────────────────────
 const canAccess = (allowedRoles) => {
-    // ❌ Denegar si: no hay usuario, no hay rol, o rol está inactivo
     if (!userRoleId.value || !isRoleActive.value) return false;
-
-    // ❌ FAIL-CLOSED: Si no hay restricciones definidas, denegar acceso
     if (!allowedRoles || allowedRoles.length === 0) return false;
-
-    // ✅ Verificar si el rol del usuario está en la lista permitida
     return allowedRoles.includes(userRoleId.value);
 };
 
@@ -136,10 +131,6 @@ const MENU_CONFIG = {
                 roles: [
                     ROLE_IDS.SUPERADMIN_WE_COLLAB,
                     ROLE_IDS.ADMIN_WE_COLLAB,
-                    ROLE_IDS.SUSCRIPTOR_SLC,
-                    ROLE_IDS.CLIENTE_ADMIN,
-                    ROLE_IDS.CLIENTE_PREMIUM,
-                    ROLE_IDS.USUARIO_PUBLICO,
                 ],
             },
             {
@@ -282,12 +273,13 @@ onUnmounted(() => {
 </script>
 
 <template>
+    <!-- ✅ CORRECCIÓN PRINCIPAL: lg:static → lg:fixed para que no se mueva al hacer scroll -->
     <aside
         :class="{
             'translate-x-0': showingNavigationDropdown,
             '-translate-x-full': !showingNavigationDropdown,
         }"
-        class="fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-[#1a3080] to-[#223e9c] shadow-2xl transform transition-all duration-300 ease-out lg:translate-x-0 lg:static lg:inset-0"
+        class="fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-[#1a3080] to-[#223e9c] shadow-2xl transform transition-all duration-300 ease-out lg:translate-x-0 lg:fixed lg:inset-y-0"
     >
         <!-- Header con Logo -->
         <div
@@ -346,8 +338,10 @@ onUnmounted(() => {
             </button>
         </div>
 
-        <!-- Navigation -->
-        <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+        <!-- ✅ Navigation con scroll interno (solo el menú se desplaza) -->
+        <nav
+            class="flex-1 px-4 py-6 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)]"
+        >
             <!-- Dashboard (Visible solo si rol está activo) -->
             <div class="mb-6" v-if="isRoleActive">
                 <NavLink
@@ -411,9 +405,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- ───────────────────────────────────── -->
             <!-- 📚 Sección: Tutorial -->
-            <!-- ───────────────────────────────────── -->
             <div v-if="showTutorialSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('tutorial')"
@@ -451,9 +443,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- ───────────────────────────────────── -->
             <!-- 👥 Sección: Usuarios -->
-            <!-- ───────────────────────────────────── -->
             <div v-if="showUsuariosSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('usuarios')"
@@ -501,9 +491,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- ───────────────────────────────────── -->
             <!-- ⚙️ Sección: Configuración -->
-            <!-- ───────────────────────────────────── -->
             <div v-if="showConfigSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('configuracion')"
@@ -726,7 +714,6 @@ onUnmounted(() => {
                             Perfil
                         </DropdownLink>
 
-                        <!-- ✅ CORREGIDO: Solo se muestra si la ruta existe en Ziggy -->
                         <DropdownLink
                             v-if="$page.props.ziggy?.routes?.['profile.edit']"
                             :href="route('profile.edit')"
@@ -790,7 +777,22 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Scrollbar personalizado para el aside */
+/* ✅ Scrollbar solo para el nav interno (no para todo el aside) */
+nav::-webkit-scrollbar {
+    width: 4px;
+}
+nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* Scrollbar para aside (fallback) */
 aside::-webkit-scrollbar {
     width: 6px;
 }

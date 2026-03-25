@@ -1,5 +1,5 @@
 <?php
-
+use Illuminate\Http\Request;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -95,8 +95,75 @@ Route::middleware([
 
 
 
+    // 🔥 NUEVA RUTA PARA REPRODUCTOR
+    // ✅ Ruta web para mostrar la vista del tutorial
+
+
+
 });
 
+
+Route::middleware(['auth'])->group(function () {
+
+    // 👁️ Ver tutorial individual (valida acceso antes de mostrar)
+    Route::get('/tutorial/{id}', function ($id, Request $request) {
+
+        $user = $request->user();
+        $tutorial = Tutorial::find($id);
+
+        // ❌ No existe
+        if (!$tutorial) {
+            abort(404, 'Tutorial no encontrado');
+        }
+
+        // ❌ No activo
+        if ($tutorial->estado !== 'activo') {
+            abort(404, 'Tutorial no disponible');
+        }
+
+        // 🔐 Validar acceso por rol/alcance
+        $tieneAcceso = false;
+
+        // Contenido público
+        if (empty($tutorial->alcance) || trim($tutorial->alcance) === '') {
+            $tieneAcceso = true;
+        }
+        // Usuario con rol
+        elseif ($user && $user->role) {
+            $rolUsuario = is_string($user->role)
+                ? $user->role
+                : ($user->role->nombre ?? $user->role->name ?? '');
+
+            // Superadmin ve todo
+            if (strtolower(trim($rolUsuario)) === 'superadmin we collab') {
+                $tieneAcceso = true;
+            }
+            // Match exacto
+            else {
+                $tieneAcceso = strtolower(trim($rolUsuario)) === strtolower(trim($tutorial->alcance));
+            }
+        }
+
+        // ❌ Sin acceso
+        if (!$tieneAcceso) {
+            abort(403, 'No tienes permiso para ver este contenido');
+        }
+
+        // ✅ Renderizar vista
+        return Inertia::render('Tutoriales/Show', [
+            'tutorial' => $tutorial,
+            'user' => $user ? [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => is_string($user->role)
+                    ? $user->role
+                    : ($user->role->nombre ?? $user->role->name ?? null),
+            ] : null,
+        ]);
+
+    })->name('tutorial.show');
+
+});
 
 
 

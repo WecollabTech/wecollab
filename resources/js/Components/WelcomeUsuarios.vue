@@ -1,224 +1,418 @@
 <script setup>
-import NavLink from "@/Components/NavLink.vue";
+import { ref, computed, onMounted } from "vue";
+import axios from "axios";
+import { usePage, router } from "@inertiajs/vue3";
+
+// 🔷 ESTADO GLOBAL
+const page = usePage();
+const user = computed(() => page.props.auth?.user);
+const tutoriales = ref([]);
+const loading = ref(true);
+const error = ref(null);
+
+// 🔷 FILTROS
+const search = ref("");
+const tipoSeleccionado = ref("todo");
+
+// 🔷 TIPOS DE MATERIAL
+const tipos = [
+    { label: "Todo", value: "todo" },
+    { label: "Video", value: "video" },
+    { label: "Manual", value: "manual" },
+    { label: "Guía", value: "guia" },
+    { label: "Tríptico", value: "triptico" },
+];
+
+// 🎯 VALORES EXACTOS DE TU ENUM 'alcance' EN LA BD
+const ALCANCES_VALIDOS = [
+    "Superadmin We collab",
+    "Admin We collab",
+    "Suscriptor SLC",
+    "Cliente Admin",
+    "Cliente Premium",
+    "Usuario Público",
+    "Prospecto",
+];
+
+// 🔷 HELPER: Obtener rol del usuario como string limpio
+const getUserRole = () => {
+    const role = user.value?.role;
+    if (!role) return "";
+    if (typeof role === "object") {
+        return (
+            role.nombre?.toString() ||
+            role.name?.toString() ||
+            role.slug?.toString() ||
+            role.role?.toString() ||
+            ""
+        );
+    }
+    return role.toString().trim();
+};
+
+// 🔷 HELPER: Normalizar string para comparación (case-insensitive)
+const normalize = (str) => {
+    if (!str) return "";
+    return str.toString().toLowerCase().trim();
+};
+
+// 🔷 ✅ FUNCIÓN: ¿El usuario puede ver este tutorial? (con validación ENUM)
+const tieneAcceso = (tutorial) => {
+    const rolUsuario = normalize(getUserRole());
+    const alcanceTutorial = tutorial.alcance;
+
+    // ✅ Validar que el alcance del tutorial sea un valor válido del ENUM
+    if (alcanceTutorial && !ALCANCES_VALIDOS.includes(alcanceTutorial)) {
+        console.warn(
+            `⚠️ Alcance inválido en tutorial ${tutorial.id}: "${alcanceTutorial}"`,
+        );
+        return false;
+    }
+
+    // Contenido público (alcance vacío o null): todos lo ven
+    if (!alcanceTutorial || alcanceTutorial.trim() === "") return true;
+
+    // Sin rol: solo ve contenidos públicos
+    if (!rolUsuario) return false;
+
+    // Superadmin: ve todo el contenido
+    if (rolUsuario === "superadmin we collab") return true;
+
+    // ✅ Match exacto (case-insensitive para comparación)
+    return normalize(rolUsuario) === normalize(alcanceTutorial);
+};
+
+// 🔷 CARGAR DATOS DESDE API - ✅ CON MEJOR MANEJO DE ERRORES
+onMounted(async () => {
+    try {
+        error.value = null;
+        loading.value = true;
+
+        // ✅ Agregar headers explícitos y timeout
+        const res = await axios.get("/tutoriales", {
+            headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            timeout: 10000,
+        });
+
+        // ✅ Validar estructura de respuesta
+        if (res.data?.data && Array.isArray(res.data.data)) {
+            tutoriales.value = res.data.data;
+        } else if (Array.isArray(res.data)) {
+            tutoriales.value = res.data;
+        } else {
+            throw new Error("Respuesta de API con formato inesperado");
+        }
+    } catch (err) {
+        console.error("❌ Error cargando tutoriales:", err);
+
+        // ✅ Mensajes más informativos según el tipo de error
+        if (err.response?.status === 401) {
+            error.value = "Debes iniciar sesión para ver el contenido";
+        } else if (err.response?.status === 403) {
+            error.value = "No tienes permisos para acceder a esta sección";
+        } else if (err.response?.status === 404) {
+            error.value = "La ruta de tutoriales no está disponible";
+        } else {
+            error.value =
+                "No se pudieron cargar los contenidos. Verifica tu conexión.";
+        }
+    } finally {
+        loading.value = false;
+    }
+});
+
+// 🔷 FILTRADO COMPUTADO
+const filtrados = computed(() => {
+    return tutoriales.value.filter((t) => {
+        if (t.estado !== "activo") return false;
+
+        const tipoOK =
+            tipoSeleccionado.value === "todo" ||
+            normalize(t.tipo_material) === normalize(tipoSeleccionado.value);
+        if (!tipoOK) return false;
+
+        const searchOK =
+            !search.value ||
+            t.titulo?.toLowerCase().includes(search.value.toLowerCase());
+        if (!searchOK) return false;
+
+        const alcanceOK = tieneAcceso(t);
+        if (!alcanceOK) return false;
+
+        return true;
+    });
+});
+
+// 🔷 ✅ THUMBNAIL CORREGIDO - Soporte para múltiples formatos de YouTube
+const getThumbnail = (url) => {
+    if (!url) return "/img/default.jpg";
+
+    // ✅ Soporte para múltiples formatos de YouTube
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        let videoId = null;
+
+        // Formato: youtu.be/VIDEO_ID
+        if (url.includes("youtu.be/")) {
+            videoId = url.split("youtu.be/")[1]?.split(/[?&#]/)[0];
+        }
+        // Formato: youtube.com/watch?v=VIDEO_ID
+        else if (url.includes("v=")) {
+            videoId = url.split("v=")[1]?.split(/[?&#]/)[0];
+        }
+        // Formato: youtube.com/embed/VIDEO_ID
+        else if (url.includes("/embed/")) {
+            videoId = url.split("/embed/")[1]?.split(/[?&#]/)[0];
+        }
+
+        // ✅ Validar que el ID tenga 11 caracteres (formato válido de YouTube)
+        if (videoId && videoId.length === 11) {
+            // ✅ SIN ESPACIOS en la URL
+            return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        }
+    }
+    return "/img/default.jpg";
+};
+
+// 🔷 Helper para obtener color del badge según alcance
+const getAlcanceBadgeClass = (alcance) => {
+    const colors = {
+        "Superadmin We collab": "bg-purple-100 text-purple-800",
+        "Admin We collab": "bg-indigo-100 text-indigo-800",
+        "Suscriptor SLC": "bg-teal-100 text-teal-800",
+        "Cliente Admin": "bg-emerald-100 text-emerald-800",
+        "Cliente Premium": "bg-amber-100 text-amber-800",
+        "Usuario Público": "bg-gray-100 text-gray-800",
+        Prospecto: "bg-blue-100 text-blue-800",
+    };
+    return colors[alcance] || "bg-slate-100 text-slate-800";
+};
+
+// 🔷 NAVEGACIÓN
+const verVideo = (tutorial) => router.visit(`/tutorial/${tutorial.id}`);
+const filterClass = (tipo) =>
+    tipoSeleccionado.value === tipo
+        ? "filter filter-active"
+        : "filter filter-inactive";
+const resetFiltros = () => {
+    search.value = "";
+    tipoSeleccionado.value = "todo";
+};
 </script>
 
 <template>
-    <div
-        class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/40"
-    >
-        <div
-            class="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10"
-        >
-            <!-- HEADER -->
+    <div class="w-full min-h-screen bg-slate-100">
+        <!-- HEADER -->
+        <div class="bg-white border-b px-6 py-4 sticky top-0 z-10 shadow-sm">
             <div
-                class="relative overflow-hidden bg-white border rounded-2xl shadow-lg p-6 sm:p-8"
+                class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
             >
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-full blur-2xl opacity-50"
-                ></div>
-                <div
-                    class="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-indigo-100 to-purple-100 rounded-full blur-2xl opacity-40"
-                ></div>
-
-                <div class="relative z-10">
-                    <h1
-                        class="text-2xl sm:text-3xl font-extrabold text-slate-900"
-                    >
-                        Bienvenidos -
-                        <span
-                            class="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-600"
-                        >
-                            Plataforma SLC
-                        </span>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">
+                        📚 Biblioteca de Contenido
                     </h1>
-
-                    <p
-                        class="mt-4 text-slate-600 max-w-3xl text-sm sm:text-base"
-                    >
-                        Gestión del MVP enfocada en registro de usuarios, acceso
-                        a contenido y administración básica de materiales de
-                        capacitación.
+                    <p class="text-sm text-slate-500">
+                        Bienvenido,
+                        <strong>{{ user?.name || "Invitado" }}</strong>
+                        <span v-if="getUserRole()" class="text-blue-600 ml-1"
+                            >• {{ getUserRole() }}</span
+                        >
                     </p>
                 </div>
+                <div class="flex items-center gap-3 w-full lg:w-auto">
+                    <div class="relative w-full lg:w-80">
+                        <input
+                            v-model="search"
+                            type="text"
+                            placeholder="Buscar contenido..."
+                            class="w-full pl-10 pr-4 py-2 rounded-full border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        />
+                        <span class="absolute left-3 top-2.5 text-slate-400"
+                            >🔍</span
+                        >
+                    </div>
+                </div>
             </div>
+            <div class="flex gap-2 mt-4 overflow-x-auto pb-1">
+                <button
+                    v-for="tipo in tipos"
+                    :key="tipo.value"
+                    @click="tipoSeleccionado = tipo.value"
+                    :class="filterClass(tipo.value)"
+                >
+                    {{ tipo.label }}
+                </button>
+                <button
+                    v-if="search || tipoSeleccionado !== 'todo'"
+                    @click="resetFiltros"
+                    class="px-3 py-1.5 rounded-full text-sm text-slate-500 hover:bg-slate-100"
+                >
+                    ✕ Limpiar
+                </button>
+            </div>
+        </div>
 
-            <!-- RESUMEN GENERAL -->
+        <!-- CONTENIDO -->
+        <div class="p-6">
+            <!-- ERROR -->
             <div
-                class="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6"
+                v-if="error"
+                class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4"
             >
-                <!-- ESTADO MVP -->
-                <div class="bg-white rounded-2xl border p-5 shadow-sm">
-                    <p class="text-xs text-slate-500">Estado del MVP</p>
-                    <p class="text-lg font-bold text-teal-600 mt-1">
-                        En desarrollo
-                    </p>
-                    <div class="w-full bg-slate-100 rounded-full h-2 mt-3">
-                        <div class="bg-teal-500 h-2 rounded-full w-2/3"></div>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-2">
-                        Progreso estimado 65%
-                    </p>
-                </div>
-
-                <!-- USUARIOS -->
-                <div class="bg-white rounded-2xl border p-5 shadow-sm">
-                    <p class="text-xs text-slate-500">Usuarios registrados</p>
-                    <p class="text-2xl font-bold text-slate-900 mt-1">--</p>
-                    <p class="text-xs text-slate-400 mt-2">
-                        Prospectos y verificados
-                    </p>
-                </div>
-
-                <!-- MATERIALES -->
-                <div class="bg-white rounded-2xl border p-5 shadow-sm">
-                    <p class="text-xs text-slate-500">Materiales cargados</p>
-                    <p class="text-2xl font-bold text-slate-900 mt-1">--</p>
-                    <p class="text-xs text-slate-400 mt-2">
-                        Videos, guías y documentos
-                    </p>
-                </div>
-
-                <!-- CONTENIDO BLOQUEADO -->
-                <div class="bg-white rounded-2xl border p-5 shadow-sm">
-                    <p class="text-xs text-slate-500">Contenido restringido</p>
-                    <p class="text-2xl font-bold text-slate-900 mt-1">Activo</p>
-                    <p class="text-xs text-slate-400 mt-2">
-                        Control de acceso habilitado
-                    </p>
-                </div>
+                {{ error }}
             </div>
 
-            <!-- FUNCIONALIDADES CLAVE -->
+            <!-- LOADING -->
+            <div v-if="loading" class="flex justify-center py-20">
+                <div
+                    class="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full"
+                ></div>
+            </div>
+
+            <!-- GRID -->
             <div
-                class="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+                v-else
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5"
             >
-                <!-- LANDING -->
                 <div
-                    class="group bg-white rounded-2xl border shadow-sm hover:shadow-xl transition p-6"
+                    v-for="tutorial in filtrados"
+                    :key="tutorial.id"
+                    @click="verVideo(tutorial)"
+                    class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition cursor-pointer border border-slate-100"
                 >
-                    <div class="flex items-center gap-2 mb-3">
-                        <i class="fas fa-globe text-teal-600"></i>
-                        <h3 class="font-bold text-slate-900">Landing Page</h3>
+                    <div class="relative h-40 overflow-hidden bg-slate-200">
+                        <img
+                            :src="getThumbnail(tutorial.url)"
+                            :alt="tutorial.titulo"
+                            class="w-full h-full object-cover group-hover:scale-110 transition"
+                            @error="$event.target.src = '/img/default.jpg'"
+                        />
+                        <div
+                            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
+                        >
+                            <div
+                                class="bg-white/30 backdrop-blur p-3 rounded-full text-white text-xl"
+                            >
+                                ▶
+                            </div>
+                        </div>
+                        <span
+                            class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] px-2 py-1 rounded"
+                        >
+                            {{ tutorial.tipo_material }}
+                        </span>
+                        <!-- ✅ Badge de alcance con colores dinámicos -->
+                        <span
+                            v-if="
+                                [
+                                    'Superadmin We collab',
+                                    'Admin We collab',
+                                ].includes(getUserRole()) && tutorial.alcance
+                            "
+                            :class="getAlcanceBadgeClass(tutorial.alcance)"
+                            class="absolute top-2 right-2 text-[10px] px-2 py-1 rounded font-medium"
+                        >
+                            {{ tutorial.alcance }}
+                        </span>
                     </div>
-                    <p class="text-sm text-slate-600">
-                        Página pública para atraer usuarios, explicar el sistema
-                        y permitir el registro.
-                    </p>
-                </div>
 
-                <!-- REGISTRO -->
-                <div
-                    class="group bg-white rounded-2xl border shadow-sm hover:shadow-xl transition p-6"
-                >
-                    <div class="flex items-center gap-2 mb-3">
-                        <i class="fas fa-user-plus text-indigo-600"></i>
-                        <h3 class="font-bold text-slate-900">
-                            Registro simplificado
+                    <div class="p-3">
+                        <h3 class="text-sm font-semibold line-clamp-1">
+                            {{ tutorial.titulo }}
                         </h3>
+                        <p class="text-xs text-slate-500 line-clamp-2 mt-1">
+                            {{ tutorial.descripcion }}
+                        </p>
+                        <div
+                            class="flex items-center justify-between mt-3 pt-2 border-t border-slate-100"
+                        >
+                            <span class="text-[10px] text-slate-400">{{
+                                new Date(
+                                    tutorial.created_at,
+                                ).toLocaleDateString("es-ES")
+                            }}</span>
+                            <!-- ✅ Badge de alcance visible para todos los usuarios -->
+                            <span
+                                v-if="tutorial.alcance"
+                                :class="getAlcanceBadgeClass(tutorial.alcance)"
+                                class="text-[10px] px-2 py-0.5 rounded font-medium"
+                            >
+                                {{ tutorial.alcance }}
+                            </span>
+                        </div>
                     </div>
-                    <p class="text-sm text-slate-600">
-                        Captura de nombre, apellido y correo para facilitar la
-                        conversión de prospectos.
-                    </p>
-                </div>
-
-                <!-- ROLES -->
-                <div
-                    class="group bg-white rounded-2xl border shadow-sm hover:shadow-xl transition p-6"
-                >
-                    <div class="flex items-center gap-2 mb-3">
-                        <i class="fas fa-shield-alt text-purple-600"></i>
-                        <h3 class="font-bold text-slate-900">
-                            Roles y permisos
-                        </h3>
-                    </div>
-                    <p class="text-sm text-slate-600">
-                        Control de acceso según tipo de usuario: admin, cliente
-                        o visitante.
-                    </p>
-                </div>
-
-                <!-- MATERIALES -->
-                <div
-                    class="group bg-white rounded-2xl border shadow-sm hover:shadow-xl transition p-6"
-                >
-                    <div class="flex items-center gap-2 mb-3">
-                        <i class="fas fa-book text-emerald-600"></i>
-                        <h3 class="font-bold text-slate-900">
-                            Catálogo de materiales
-                        </h3>
-                    </div>
-                    <p class="text-sm text-slate-600">
-                        Visualización de videos, guías y documentos disponibles.
-                    </p>
-                </div>
-
-                <!-- BLOQUEO -->
-                <div
-                    class="group bg-white rounded-2xl border shadow-sm hover:shadow-xl transition p-6"
-                >
-                    <div class="flex items-center gap-2 mb-3">
-                        <i class="fas fa-lock text-red-500"></i>
-                        <h3 class="font-bold text-slate-900">
-                            Contenido restringido
-                        </h3>
-                    </div>
-                    <p class="text-sm text-slate-600">
-                        Material exclusivo bloqueado para usuarios no
-                        registrados.
-                    </p>
-                </div>
-
-                <!-- ADMIN -->
-                <div
-                    class="group bg-white rounded-2xl border shadow-sm hover:shadow-xl transition p-6"
-                >
-                    <div class="flex items-center gap-2 mb-3">
-                        <i class="fas fa-cogs text-slate-600"></i>
-                        <h3 class="font-bold text-slate-900">
-                            Panel administrativo
-                        </h3>
-                    </div>
-                    <p class="text-sm text-slate-600">
-                        Gestión de contenido: subir videos, guías y documentos.
-                    </p>
                 </div>
             </div>
 
-            <!-- ACCIONES RÁPIDAS -->
-            <div class="mt-10 bg-white border rounded-2xl p-6 shadow-sm">
-                <h2 class="font-bold text-slate-800 mb-4">Acciones rápidas</h2>
-
-                <div class="flex flex-wrap gap-3">
-                    <button
-                        class="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm hover:scale-105 transition"
-                    >
-                        + Subir material
-                    </button>
-
-                    <button
-                        class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm hover:scale-105 transition"
-                    >
-                        Ver usuarios
-                    </button>
-
-                    <button
-                        class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm hover:scale-105 transition"
-                    >
-                        Ir a catálogo
-                    </button>
-                </div>
+            <!-- ESTADOS VACÍOS -->
+            <div
+                v-if="
+                    !loading &&
+                    !error &&
+                    tutoriales.length > 0 &&
+                    filtrados.length === 0 &&
+                    search
+                "
+                class="text-center py-20"
+            >
+                <div class="text-4xl mb-3">🔍</div>
+                <p class="text-slate-600">No se encontró "{{ search }}"</p>
+                <button
+                    @click="search = ''"
+                    class="mt-2 text-blue-600 text-sm hover:underline"
+                >
+                    Limpiar búsqueda
+                </button>
             </div>
 
-            <!-- FOOTER -->
-            <div class="mt-12 pt-6 border-t text-center text-xs text-slate-400">
-                Plataforma SLC • MVP en desarrollo
+            <div
+                v-if="
+                    !loading &&
+                    !error &&
+                    tutoriales.length > 0 &&
+                    filtrados.length === 0 &&
+                    !search
+                "
+                class="text-center py-20"
+            >
+                <div class="text-4xl mb-3">🔐</div>
+                <p class="text-slate-600">
+                    No tienes acceso a los contenidos disponibles
+                </p>
+                <p class="text-sm text-slate-400 mt-1">
+                    Tu rol: <strong>{{ getUserRole() || "Invitado" }}</strong>
+                </p>
+            </div>
+
+            <div
+                v-if="!loading && !error && tutoriales.length === 0"
+                class="text-center py-20"
+            >
+                <div class="text-4xl mb-3">📚</div>
+                <p class="text-slate-500">Aún no hay contenido disponible</p>
             </div>
         </div>
     </div>
 </template>
 
 <style scoped>
+.filter {
+    @apply px-4 py-1.5 rounded-full text-sm font-medium transition whitespace-nowrap;
+}
+.filter-active {
+    @apply bg-blue-600 text-white shadow;
+}
+.filter-inactive {
+    @apply bg-slate-100 text-slate-600 hover:bg-slate-200;
+}
+.line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
 .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;

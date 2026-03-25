@@ -16,7 +16,16 @@ return new class extends Migration {
             $table->text('descripcion')->nullable();
             $table->enum('tipo_material', ['video', 'manual', 'guia', 'post', 'triptico'])->nullable();
             $table->enum('formato', ['pdf', 'word', 'mp4'])->nullable();
-            $table->enum('alcance', ['Superadministrador', 'Administrador', 'ClienteAdmin', 'ClienteSuscriptor', 'UsuarioPúblico', 'Prospecto'])->nullable();
+            $table->enum('alcance', [
+                'Superadmin We collab',
+                'Admin We collab',
+                'Suscriptor SLC',
+                'Cliente Admin',
+                'Cliente Premium',
+                'Usuario Público',
+                'Prospecto',
+                'usuario'
+            ])->nullable();
             $table->string('estado')->default('activo');
             $table->text('url')->nullable();
             $table->text('observacion')->nullable();

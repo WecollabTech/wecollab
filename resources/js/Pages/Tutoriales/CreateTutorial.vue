@@ -1,26 +1,39 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
+import axios from "axios"; // ✅ IMPORTANTE: agregar axios
 import AppLayout from "@/Layouts/AppLayout.vue";
 
 const page = usePage();
 
-// ✅ Formulario con valores corregidos según tu BD
-// ⚠️ user_id: dejado pendiente (en $fillable pero no se envía aún)
+// 🎯 VALORES EXACTOS DE TUS ENUMS EN LA BD
+const ENUMS = {
+    TIPO_MATERIAL: ["video", "manual", "guia", "post", "triptico"],
+    FORMATO: ["pdf", "word", "mp4"],
+    ALCANCE: [
+        "Superadmin We collab",
+        "Admin We collab",
+        "Suscriptor SLC",
+        "Cliente Admin",
+        "Cliente Premium",
+        "Usuario Publico",
+        "Prospecto",
+    ],
+    ESTADO: ["activo", "inactivo"],
+};
+
+// ✅ Formulario con valores por defecto seguros
 const form = ref({
     titulo: "",
     descripcion: "",
-    tipo_material: "video",
-    formato: "mp4",
-    // ✅ Valores actualizados según tu enum 'alcance' en la BD
-    alcance: "Superadministrador",
-    estado: "activo",
+    tipo_material: ENUMS.TIPO_MATERIAL[0], // ✅ "video" (primer valor válido)
+    formato: ENUMS.FORMATO[2], // ✅ "mp4" (valor válido)
+    alcance: "", // ✅ Forzar selección (no hay valor por defecto seguro)
+    estado: ENUMS.ESTADO[0], // ✅ "activo"
     url: "",
     observacion: "",
-    // ✅ null para foreign key (no string vacío)
-    subcategoria_id: null,
-    // ⏳ user_id: pendiente - está en $fillable pero no se envía aún
-    // user_id: page.props.auth.user?.id ?? null,
+    subcategoria_id: null, // ✅ null para foreign key
+    // user_id: page.props.auth.user?.id ?? null, // ⏳ Pendiente si es requerido
 });
 
 const subcategorias = ref([]);
@@ -28,10 +41,45 @@ const loading = ref(false);
 const formErrors = ref({});
 const apiError = ref(null);
 
+// 🔍 Validación frontend
+const validateForm = () => {
+    const errors = {};
+
+    if (!form.value.titulo?.trim()) {
+        errors.titulo = ["El título es requerido"];
+    }
+
+    if (!form.value.descripcion?.trim()) {
+        errors.descripcion = ["La descripción es requerida"];
+    }
+
+    // ✅ Validar que los enums coincidan con los valores de la BD
+    if (!ENUMS.TIPO_MATERIAL.includes(form.value.tipo_material)) {
+        errors.tipo_material = ["Seleccione un tipo de material válido"];
+    }
+
+    if (!ENUMS.FORMATO.includes(form.value.formato)) {
+        errors.formato = ["Seleccione un formato válido"];
+    }
+
+    if (!ENUMS.ALCANCE.includes(form.value.alcance)) {
+        errors.alcance = ["Seleccione un alcance válido"];
+    }
+
+    if (!form.value.subcategoria_id) {
+        errors.subcategoria_id = ["Debe seleccionar una subcategoría"];
+    }
+
+    if (form.value.url && !/^https?:\/\/.+/.test(form.value.url)) {
+        errors.url = ["Ingrese una URL válida (http/https)"];
+    }
+
+    return errors;
+};
+
 const fetchSubcategorias = async () => {
     try {
         loading.value = true;
-        // ✅ Ruta con prefijo /api/
         const response = await axios.get("/subcategorias");
 
         subcategorias.value = (response.data?.data || response.data || [])
@@ -42,7 +90,7 @@ const fetchSubcategorias = async () => {
             }));
     } catch (err) {
         apiError.value = "Error al cargar las subcategorías";
-        console.error("Error al cargar subcategorías:", err);
+        console.error("❌ Error al cargar subcategorías:", err);
     } finally {
         loading.value = false;
     }
@@ -51,46 +99,45 @@ const fetchSubcategorias = async () => {
 const submit = async () => {
     formErrors.value = {};
     apiError.value = null;
+
+    // ✅ Validar antes de enviar
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+        formErrors.value = errors;
+        return;
+    }
+
     loading.value = true;
 
     try {
-        // 🔍 Validación frontend: subcategoría requerida
-        if (!form.value.subcategoria_id) {
-            formErrors.value.subcategoria_id = [
-                "Debe seleccionar una subcategoría",
-            ];
-            loading.value = false;
-            return;
-        }
-
-        // ✅ Preparar payload (user_id pendiente - no se incluye aún)
+        // ✅ Payload limpio con valores exactos de la BD
         const payload = {
             titulo: form.value.titulo.trim(),
-            descripcion: form.value.descripcion,
+            descripcion: form.value.descripcion.trim(),
             tipo_material: form.value.tipo_material,
             formato: form.value.formato,
             alcance: form.value.alcance,
             estado: form.value.estado,
-            url: form.value.url || null,
-            observacion: form.value.observacion || null,
+            url: form.value.url?.trim() || null,
+            observacion: form.value.observacion?.trim() || null,
             subcategoria_id: form.value.subcategoria_id || null,
-            // ⏳ user_id: pendiente - se puede agregar después cuando se requiera
-            // user_id: form.value.user_id || null,
+            // user_id: page.props.auth.user?.id ?? null, // ⏳ Agregar si es requerido
         };
 
-        console.log("📤 Enviando:", payload);
+        console.log("📤 Enviando tutorial:", payload);
 
-        // ✅ POST con prefijo /api/
         const response = await axios.post("/tutoriales", payload);
 
-        console.log("✅ Respuesta:", response.data);
+        console.log("✅ Tutorial creado:", response.data);
 
+        // ✅ Redirección con Inertia (verifica el nombre de tu ruta)
         router.visit(route("tutoriales"), {
             preserveState: false,
             preserveScroll: true,
         });
     } catch (error) {
         if (error.response?.status === 422) {
+            // ✅ Errores de validación del backend Laravel
             formErrors.value = error.response.data.errors || {};
         } else if (error.response?.status === 500) {
             apiError.value =
@@ -126,16 +173,17 @@ onMounted(() => {
                     Crear Nuevo Tutorial
                 </h3>
 
+                <!-- ✅ Mensaje de error global -->
                 <div
                     v-if="apiError"
-                    class="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700"
+                    class="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded"
                 >
                     <p>{{ apiError }}</p>
                 </div>
 
                 <form @submit.prevent="submit" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Columna 1 -->
+                        <!-- ===== COLUMNA 1 ===== -->
                         <div class="space-y-4">
                             <!-- Título -->
                             <div>
@@ -152,6 +200,7 @@ onMounted(() => {
                                     :class="{
                                         'border-red-500': formErrors.titulo,
                                     }"
+                                    placeholder="Ej: Introducción a Vue 3"
                                 />
                                 <span
                                     v-if="formErrors.titulo"
@@ -176,6 +225,7 @@ onMounted(() => {
                                         'border-red-500':
                                             formErrors.descripcion,
                                     }"
+                                    placeholder="Breve descripción del contenido..."
                                 ></textarea>
                                 <span
                                     v-if="formErrors.descripcion"
@@ -185,7 +235,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
-                            <!-- Tipo de Material -->
+                            <!-- Tipo de Material (ENUM: video, manual, guia, post, triptico) -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -200,11 +250,19 @@ onMounted(() => {
                                             formErrors.tipo_material,
                                     }"
                                 >
-                                    <option value="video">Video</option>
-                                    <option value="manual">Manual</option>
-                                    <option value="guia">Guía</option>
-                                    <option value="post">Post</option>
-                                    <option value="triptico">Tríptico</option>
+                                    <option disabled value="">
+                                        Seleccione un tipo
+                                    </option>
+                                    <option
+                                        v-for="val in ENUMS.TIPO_MATERIAL"
+                                        :key="val"
+                                        :value="val"
+                                    >
+                                        {{
+                                            val.charAt(0).toUpperCase() +
+                                            val.slice(1)
+                                        }}
+                                    </option>
                                 </select>
                                 <span
                                     v-if="formErrors.tipo_material"
@@ -215,9 +273,9 @@ onMounted(() => {
                             </div>
                         </div>
 
-                        <!-- Columna 2 -->
+                        <!-- ===== COLUMNA 2 ===== -->
                         <div class="space-y-4">
-                            <!-- Formato -->
+                            <!-- Formato (ENUM: pdf, word, mp4) -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -231,9 +289,16 @@ onMounted(() => {
                                         'border-red-500': formErrors.formato,
                                     }"
                                 >
-                                    <option value="mp4">MP4</option>
-                                    <option value="pdf">PDF</option>
-                                    <option value="word">Word</option>
+                                    <option disabled value="">
+                                        Seleccione un formato
+                                    </option>
+                                    <option
+                                        v-for="val in ENUMS.FORMATO"
+                                        :key="val"
+                                        :value="val"
+                                    >
+                                        {{ val.toUpperCase() }}
+                                    </option>
                                 </select>
                                 <span
                                     v-if="formErrors.formato"
@@ -243,7 +308,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
-                            <!-- ✅ Alcance con valores de tu BD -->
+                            <!-- Alcance (ENUM: valores exactos de tu BD) -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -257,22 +322,16 @@ onMounted(() => {
                                         'border-red-500': formErrors.alcance,
                                     }"
                                 >
-                                    <option value="Superadministrador">
-                                        Superadministrador
+                                    <option disabled value="">
+                                        Seleccione un alcance
                                     </option>
-                                    <option value="Administrador">
-                                        Administrador
+                                    <option
+                                        v-for="val in ENUMS.ALCANCE"
+                                        :key="val"
+                                        :value="val"
+                                    >
+                                        {{ val }}
                                     </option>
-                                    <option value="ClienteAdmin">
-                                        Cliente Admin
-                                    </option>
-                                    <option value="ClienteSuscriptor">
-                                        Cliente Suscriptor
-                                    </option>
-                                    <option value="UsuarioPúblico">
-                                        Usuario Público
-                                    </option>
-                                    <option value="Prospecto">Prospecto</option>
                                 </select>
                                 <span
                                     v-if="formErrors.alcance"
@@ -282,7 +341,7 @@ onMounted(() => {
                                 </span>
                             </div>
 
-                            <!-- Subcategoría -->
+                            <!-- Subcategoría (dinámica desde API) -->
                             <div>
                                 <label
                                     class="block text-sm font-medium text-gray-700"
@@ -306,11 +365,11 @@ onMounted(() => {
                                         }}
                                     </option>
                                     <option
-                                        v-for="subcategoria in subcategorias"
-                                        :key="subcategoria.id"
-                                        :value="subcategoria.id"
+                                        v-for="sub in subcategorias"
+                                        :key="sub.id"
+                                        :value="sub.id"
                                     >
-                                        {{ subcategoria.nombre }}
+                                        {{ sub.nombre }}
                                     </option>
                                 </select>
                                 <span
@@ -323,8 +382,9 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <!-- URL y Estado -->
+                    <!-- ===== FILA: URL + ESTADO ===== -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- URL -->
                         <div>
                             <label
                                 class="block text-sm font-medium text-gray-700"
@@ -335,7 +395,7 @@ onMounted(() => {
                                 type="url"
                                 class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                 :class="{ 'border-red-500': formErrors.url }"
-                                placeholder="https://ejemplo.com"
+                                placeholder="https://ejemplo.com/recurso"
                             />
                             <span
                                 v-if="formErrors.url"
@@ -345,6 +405,7 @@ onMounted(() => {
                             </span>
                         </div>
 
+                        <!-- Estado (ENUM: activo, inactivo) -->
                         <div>
                             <label
                                 class="block text-sm font-medium text-gray-700"
@@ -356,8 +417,16 @@ onMounted(() => {
                                 class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                 :class="{ 'border-red-500': formErrors.estado }"
                             >
-                                <option value="activo">Activo</option>
-                                <option value="inactivo">Inactivo</option>
+                                <option
+                                    v-for="val in ENUMS.ESTADO"
+                                    :key="val"
+                                    :value="val"
+                                >
+                                    {{
+                                        val.charAt(0).toUpperCase() +
+                                        val.slice(1)
+                                    }}
+                                </option>
                             </select>
                             <span
                                 v-if="formErrors.estado"
@@ -380,6 +449,7 @@ onMounted(() => {
                             :class="{
                                 'border-red-500': formErrors.observacion,
                             }"
+                            placeholder="Notas adicionales (opcional)..."
                         ></textarea>
                         <span
                             v-if="formErrors.observacion"
@@ -389,24 +459,26 @@ onMounted(() => {
                         </span>
                     </div>
 
-                    <!-- Botones -->
-                    <div class="flex justify-end space-x-3">
+                    <!-- ===== BOTONES ===== -->
+                    <div
+                        class="flex justify-end space-x-3 pt-4 border-t border-gray-200"
+                    >
                         <button
                             type="button"
                             @click="router.visit(route('tutoriales.index'))"
-                            class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                             :disabled="loading"
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             :disabled="loading"
                         >
-                            <span v-if="loading">
+                            <span v-if="loading" class="flex items-center">
                                 <svg
-                                    class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                                    class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
                                     xmlns="http://www.w3.org/2000/svg"
                                     fill="none"
                                     viewBox="0 0 24 24"
@@ -427,7 +499,7 @@ onMounted(() => {
                                 </svg>
                                 Guardando...
                             </span>
-                            <span v-else>Guardar Tutorial</span>
+                            <span v-else>💾 Guardar Tutorial</span>
                         </button>
                     </div>
                 </form>
