@@ -351,7 +351,7 @@ import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
 const API_URL = "/subcategorias";
-const CATEGORIA_API_URL = "/categorias";
+const CATEGORIA_API_URL = "/categorias/all";
 
 // Estado del modal y formulario
 const isModalOpen = ref(false);
@@ -428,10 +428,10 @@ const updateItem = async () => {
     try {
         const response = await axios.put(
             `${API_URL}/${form.value.id}`,
-            form.value
+            form.value,
         );
         const index = subcategorias.value.findIndex(
-            (item) => item.id === form.value.id
+            (item) => item.id === form.value.id,
         );
         if (index !== -1) {
             subcategorias.value[index] = response.data;
@@ -453,7 +453,7 @@ const deleteItem = async () => {
     try {
         await axios.delete(`${API_URL}/${itemIdToDelete.value}`);
         subcategorias.value = subcategorias.value.filter(
-            (item) => item.id !== itemIdToDelete.value
+            (item) => item.id !== itemIdToDelete.value,
         );
         isConfirmModalOpen.value = false;
         successMessage.value = "Subcategoría eliminada exitosamente.";
@@ -517,6 +517,6 @@ watch(
     () => {
         errorMessage.value = "";
     },
-    { deep: true }
+    { deep: true },
 );
 </script>

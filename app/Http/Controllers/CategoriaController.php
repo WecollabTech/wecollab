@@ -74,4 +74,12 @@ class CategoriaController extends Controller
         $categoria->delete();
         return response()->json(null, 204);
     }
+
+
+
+    public function all()
+    {
+        $categorias = Categoria::select('id', 'nombre')->get();
+        return response()->json($categorias);
+    }
 }

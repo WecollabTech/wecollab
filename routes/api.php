@@ -18,6 +18,7 @@ Route::get('/user', function (Request $request) {
 Route::apiResource('roles', RoleController::class);
 Route::get('/permisos/all', [PermisoController::class, 'all']);
 Route::apiResource('permisos', PermisoController::class);
+Route::get('categorias/all', [CategoriaController::class, 'all']);
 Route::apiResource('categorias', CategoriaController::class);
 Route::apiResource('subcategorias', SubcategoriaController::class);
 
