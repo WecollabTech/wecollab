@@ -29,7 +29,7 @@ const userRole = computed(() => {
 });
 
 // ✅ Roles autorizados para crear tutoriales
-const ROLES_PERMITIDOS_CREAR = ["Superadmin We collab", "Administrador"];
+const ROLES_PERMITIDOS_CREAR = ["Superadmin We collab", "Admin We collab"];
 
 // ✅ Verificador de permiso para crear tutoriales
 const canCreateTutorial = computed(() => {
