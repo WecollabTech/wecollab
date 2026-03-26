@@ -20,7 +20,22 @@
                         Crear Nueva Subcategoría
                     </button>
                 </div>
-                <div class="overflow-x-auto">
+
+                <!-- Mensaje de error general -->
+                <div
+                    v-if="errorMessage"
+                    class="bg-red-100 text-red-700 p-4 mb-4 rounded-md"
+                >
+                    <p>{{ errorMessage }}</p>
+                </div>
+
+                <!-- Loading state -->
+                <div v-if="loading" class="text-center py-8">
+                    <p class="text-gray-500">Cargando datos...</p>
+                </div>
+
+                <!-- Tabla de subcategorías -->
+                <div v-else class="overflow-x-auto">
                     <table
                         class="min-w-full bg-white border border-gray-200 shadow-sm rounded-lg overflow-hidden"
                     >
@@ -148,14 +163,28 @@
                                     </div>
                                 </td>
                             </tr>
+                            <!-- Mensaje cuando no hay datos -->
+                            <tr v-if="subcategorias.length === 0">
+                                <td
+                                    colspan="6"
+                                    class="px-6 py-8 text-center text-gray-500"
+                                >
+                                    No hay subcategorías registradas
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
-                <div class="flex justify-center items-center mt-4 space-x-4">
+
+                <!-- Paginación -->
+                <div
+                    v-if="subcategorias.length > 0"
+                    class="flex justify-center items-center mt-4 space-x-4"
+                >
                     <button
                         @click="changePage(pagination.prev_page_url)"
                         :disabled="!pagination.prev_page_url"
-                        class="px-4 py-2 bg-[#277cbb] text-white rounded-md hover:bg-[#63a2c4] transition duration-200"
+                        class="px-4 py-2 bg-[#277cbb] text-white rounded-md hover:bg-[#63a2c4] transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Anterior
                     </button>
@@ -166,7 +195,7 @@
                     <button
                         @click="changePage(pagination.next_page_url)"
                         :disabled="!pagination.next_page_url"
-                        class="px-4 py-2 bg-[#277cbb] text-white rounded-md hover:bg-[#63a2c4] transition duration-200"
+                        class="px-4 py-2 bg-[#277cbb] text-white rounded-md hover:bg-[#63a2c4] transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Siguiente
                     </button>
@@ -176,16 +205,16 @@
             <!-- Modal para crear/editar -->
             <div
                 v-if="isModalOpen"
-                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             >
                 <div
-                    class="bg-white rounded-lg border border-gray-200 shadow-2xl p-6 w-1/3"
+                    class="bg-white rounded-lg border border-gray-200 shadow-2xl p-6 w-1/3 max-h-[90vh] overflow-y-auto"
                 >
                     <div
-                        v-if="errorMessage"
+                        v-if="modalErrorMessage"
                         class="bg-red-100 text-red-700 p-4 mb-4 rounded-md"
                     >
-                        <p>{{ errorMessage }}</p>
+                        <p>{{ modalErrorMessage }}</p>
                     </div>
                     <h3 class="text-xl font-semibold mb-4">
                         {{
@@ -232,6 +261,7 @@
                             <textarea
                                 v-model="form.descripcion"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                rows="3"
                             ></textarea>
                         </div>
                         <div class="mb-4">
@@ -255,6 +285,12 @@
                                     {{ categoria.nombre }}
                                 </option>
                             </select>
+                            <p
+                                v-if="categorias.length === 0"
+                                class="text-sm text-yellow-600 mt-1"
+                            >
+                                ⚠️ No hay categorías disponibles
+                            </p>
                         </div>
                         <div class="flex justify-center">
                             <button
@@ -266,9 +302,16 @@
                             </button>
                             <button
                                 type="submit"
-                                class="bg-[#34b445] text-white px-4 py-2 rounded-md hover:bg-[#4fab5c] transition duration-200 shadow-md"
+                                :disabled="saving"
+                                class="bg-[#34b445] text-white px-4 py-2 rounded-md hover:bg-[#4fab5c] transition duration-200 shadow-md disabled:opacity-50"
                             >
-                                {{ isEditing ? "Actualizar" : "Crear" }}
+                                {{
+                                    saving
+                                        ? "Guardando..."
+                                        : isEditing
+                                          ? "Actualizar"
+                                          : "Crear"
+                                }}
                             </button>
                         </div>
                     </form>
@@ -278,7 +321,7 @@
             <!-- Modal de éxito -->
             <div
                 v-if="isSuccessModalOpen"
-                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             >
                 <div
                     class="bg-white rounded-lg border border-gray-200 shadow-2xl p-8 w-1/3 text-center"
@@ -313,7 +356,7 @@
             <!-- Modal de confirmación para eliminar -->
             <div
                 v-if="isConfirmModalOpen"
-                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             >
                 <div
                     class="bg-white rounded-lg border border-gray-200 shadow-2xl p-8 w-1/3 text-center"
@@ -334,9 +377,10 @@
                         </button>
                         <button
                             @click="deleteItem"
-                            class="bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600 transition duration-200 shadow-md"
+                            :disabled="deleting"
+                            class="bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600 transition duration-200 shadow-md disabled:opacity-50"
                         >
-                            Eliminar
+                            {{ deleting ? "Eliminando..." : "Eliminar" }}
                         </button>
                     </div>
                 </div>
@@ -353,6 +397,11 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 const API_URL = "/subcategorias";
 const CATEGORIA_API_URL = "/categorias/all";
 
+// Estado de carga
+const loading = ref(false);
+const saving = ref(false);
+const deleting = ref(false);
+
 // Estado del modal y formulario
 const isModalOpen = ref(false);
 const isEditing = ref(false);
@@ -360,6 +409,7 @@ const isSuccessModalOpen = ref(false);
 const isConfirmModalOpen = ref(false);
 const successMessage = ref("");
 const errorMessage = ref("");
+const modalErrorMessage = ref("");
 const itemIdToDelete = ref(null);
 
 // Datos del formulario
@@ -382,10 +432,10 @@ const pagination = ref({
 
 const updatePagination = (data) => {
     pagination.value = {
-        current_page: data.current_page,
-        last_page: data.last_page,
-        prev_page_url: data.prev_page_url,
-        next_page_url: data.next_page_url,
+        current_page: data.current_page || 1,
+        last_page: data.last_page || 1,
+        prev_page_url: data.prev_page_url || null,
+        next_page_url: data.next_page_url || null,
     };
 };
 
@@ -397,50 +447,68 @@ const openModal = () => {
         categoria_id: "",
     };
     isEditing.value = false;
-    errorMessage.value = "";
+    modalErrorMessage.value = "";
     isModalOpen.value = true;
 };
 
 const closeModal = () => {
     isModalOpen.value = false;
+    modalErrorMessage.value = "";
 };
 
 const editItem = (item) => {
-    form.value = { ...item, categoria_id: item.categoria_id || "" };
+    form.value = {
+        id: item.id,
+        nombre: item.nombre || "",
+        estado: item.estado || "activo",
+        descripcion: item.descripcion || "",
+        categoria_id: item.categoria_id || item.categoria?.id || "",
+    };
     isEditing.value = true;
-    errorMessage.value = "";
+    modalErrorMessage.value = "";
     isModalOpen.value = true;
 };
 
 const createItem = async () => {
+    saving.value = true;
+    modalErrorMessage.value = "";
+
     try {
         const response = await axios.post(API_URL, form.value);
-        subcategorias.value.push(response.data);
+
+        // Recargar datos para obtener la subcategoría completa con categoría
+        await loadSubcategorias();
+
         successMessage.value = "Subcategoría creada exitosamente.";
         closeModal();
         isSuccessModalOpen.value = true;
     } catch (error) {
-        handleError(error, "Error al crear la subcategoría.");
+        handleError(error, "Error al crear la subcategoría.", true);
+    } finally {
+        saving.value = false;
     }
 };
 
 const updateItem = async () => {
+    saving.value = true;
+    modalErrorMessage.value = "";
+
     try {
         const response = await axios.put(
             `${API_URL}/${form.value.id}`,
             form.value,
         );
-        const index = subcategorias.value.findIndex(
-            (item) => item.id === form.value.id,
-        );
-        if (index !== -1) {
-            subcategorias.value[index] = response.data;
-        }
+
+        // Recargar datos para obtener la subcategoría completa con categoría
+        await loadSubcategorias();
+
         successMessage.value = "Subcategoría actualizada exitosamente.";
         closeModal();
         isSuccessModalOpen.value = true;
     } catch (error) {
-        handleError(error, "Error al actualizar la subcategoría.");
+        handleError(error, "Error al actualizar la subcategoría.", true);
+    } finally {
+        saving.value = false;
     }
 };
 
@@ -450,16 +518,21 @@ const confirmDelete = (item) => {
 };
 
 const deleteItem = async () => {
+    deleting.value = true;
+
     try {
         await axios.delete(`${API_URL}/${itemIdToDelete.value}`);
-        subcategorias.value = subcategorias.value.filter(
-            (item) => item.id !== itemIdToDelete.value,
-        );
+
+        // Recargar datos
+        await loadSubcategorias();
+
         isConfirmModalOpen.value = false;
         successMessage.value = "Subcategoría eliminada exitosamente.";
         isSuccessModalOpen.value = true;
     } catch (error) {
-        handleError(error, "Error al eliminar la subcategoría.");
+        handleError(error, "Error al eliminar la subcategoría.", true);
+    } finally {
+        deleting.value = false;
     }
 };
 
@@ -473,49 +546,96 @@ const closeSuccessModal = () => {
 
 const changePage = async (url) => {
     if (!url) return;
+
+    loading.value = true;
+
     try {
         const response = await axios.get(url);
+
         if (response.data) {
-            subcategorias.value = response.data.data;
+            // Manejo flexible de estructura de respuesta
+            const data = response.data?.data || response.data;
+            subcategorias.value = Array.isArray(data) ? data : [];
             updatePagination(response.data);
         }
     } catch (error) {
         handleError(error, "Error al cambiar de página.");
+    } finally {
+        loading.value = false;
+    }
+};
+
+const loadSubcategorias = async () => {
+    loading.value = true;
+
+    try {
+        const response = await axios.get(API_URL);
+
+        if (response.data) {
+            // Manejo flexible: soporta {  [...] } o [...] directo
+            const data = response.data?.data || response.data;
+            subcategorias.value = Array.isArray(data) ? data : [];
+            updatePagination(response.data);
+        }
+    } catch (error) {
+        handleError(error, "Error al cargar las subcategorías.");
+    } finally {
+        loading.value = false;
+    }
+};
+
+const loadCategorias = async () => {
+    try {
+        const response = await axios.get(CATEGORIA_API_URL);
+
+        if (response.data) {
+            // Manejo flexible: soporta {  [...] } o [...] directo
+            const data = response.data?.data || response.data;
+            categorias.value = Array.isArray(data) ? data : [];
+        }
+    } catch (error) {
+        console.error("Error al cargar categorías:", error);
+        // No mostramos error al usuario si falla cargar categorías,
+        // pero el select quedará vacío
     }
 };
 
 onMounted(async () => {
-    try {
-        const [subcatResponse, catResponse] = await Promise.all([
-            axios.get(API_URL),
-            axios.get(CATEGORIA_API_URL),
-        ]);
-        if (subcatResponse.data) {
-            subcategorias.value = subcatResponse.data.data;
-            updatePagination(subcatResponse.data);
-        }
-        if (catResponse.data) {
-            categorias.value = catResponse.data.data;
-        }
-    } catch (error) {
-        handleError(error, "Error al cargar los datos.");
-    }
+    await Promise.all([loadSubcategorias(), loadCategorias()]);
 });
 
-const handleError = (error, defaultMessage) => {
-    if (error.response && error.response.data && error.response.data.errors) {
-        const errorMessages = Object.values(error.response.data.errors);
-        errorMessage.value =
-            errorMessages.length > 0 ? errorMessages[0][0] : defaultMessage;
-    } else {
-        errorMessage.value = defaultMessage;
+const handleError = (error, defaultMessage, isModal = false) => {
+    let message = defaultMessage;
+
+    if (error.response) {
+        // Error del servidor (4xx, 5xx)
+        if (error.response.data?.errors) {
+            // Errores de validación
+            const errorMessages = Object.values(error.response.data.errors);
+            message =
+                errorMessages.length > 0 ? errorMessages[0][0] : defaultMessage;
+        } else if (error.response.data?.message) {
+            // Mensaje personalizado del backend
+            message = error.response.data.message;
+        }
+    } else if (error.request) {
+        // No hubo respuesta del servidor
+        message = "No se pudo conectar con el servidor. Verifica tu conexión.";
     }
+
+    if (isModal) {
+        modalErrorMessage.value = message;
+    } else {
+        errorMessage.value = message;
+    }
+
+    console.error("Error:", error);
 };
 
 watch(
     () => form.value,
     () => {
-        errorMessage.value = "";
+        modalErrorMessage.value = "";
     },
     { deep: true },
 );
