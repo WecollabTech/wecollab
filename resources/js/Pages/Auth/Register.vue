@@ -25,7 +25,7 @@ const form = useForm({
     country_name: "",
     state: "",
     city: "",
-    company_id: "", // 🆕 NUEVO: ID de Compañía
+    company_id: "",
     direccion: "",
     status: "activo",
 });
@@ -39,7 +39,7 @@ const countries = ref([]),
     cities = ref([]);
 const isLoading = ref({ countries: false, states: false, cities: false });
 
-// 📱 Códigos telefónicos por país (ISO code → phone code)
+// 📱 Códigos telefónicos por país
 const phoneCodes = {
     AR: "+54",
     BO: "+591",
@@ -118,13 +118,11 @@ const phoneCodes = {
     HK: "+852",
 };
 
-// Obtener código telefónico del país seleccionado
 const currentPhoneCode = computed(() => {
     if (!form.country_code) return "";
     return phoneCodes[form.country_code] || "";
 });
 
-// GeoNames API - Países
 const fetchCountries = async () => {
     isLoading.value.countries = true;
     try {
@@ -150,7 +148,6 @@ const fetchCountries = async () => {
     }
 };
 
-// GeoNames API - Estados
 const fetchStates = async (countryCode) => {
     if (!countryCode) {
         states.value = [];
@@ -184,7 +181,6 @@ const fetchStates = async (countryCode) => {
     }
 };
 
-// GeoNames API - Ciudades
 const fetchCities = async (stateName) => {
     if (!stateName) {
         cities.value = [];
@@ -214,7 +210,6 @@ const fetchCities = async (stateName) => {
     }
 };
 
-// Watchers para ubicación en cascada
 watch(
     () => form.country_code,
     (newCode) => {
@@ -248,12 +243,11 @@ const totalSteps = 4;
 const hasNavigatedToError = ref(false);
 const stepErrors = ref({});
 
-// Campos por paso (company_id agregado al paso 4 - Finalizar)
 const stepFields = {
     1: ["name", "apellido", "email"],
     2: ["country_code", "state", "city", "telefono"],
     3: ["password", "password_confirmation"],
-    4: ["terms", "direccion", "status", "company_id"], // 🆕 company_id aquí
+    4: ["terms", "direccion", "status", "company_id"],
 };
 
 const getStepForField = (fieldName) => {
@@ -272,10 +266,7 @@ const scrollToForm = ({ behavior = "smooth", offset = 0 } = {}) => {
         if (target) {
             const rect = target.getBoundingClientRect();
             const scrollTop = window.pageYOffset + rect.top + offset - 100;
-            window.scrollTo({
-                top: scrollTop,
-                behavior: behavior,
-            });
+            window.scrollTo({ top: scrollTop, behavior: behavior });
         }
     });
 };
@@ -361,6 +352,7 @@ watch(
 // 🔔 NOTIFICACIÓN DE ERRORES
 // ============================================
 const stepErrorNotification = ref({ show: false, step: null, message: "" });
+
 const showStepErrorNotification = (step) => {
     const stepNames = {
         1: "Información Personal",
@@ -407,7 +399,6 @@ const validateCurrentStep = () => {
             stepErrors.value[field] = "Selecciona un país";
             isValid = false;
         }
-        // 🆕 Validación opcional para company_id (si se proporciona, debe ser numérico)
         if (field === "company_id" && value && !/^\d+$/.test(value)) {
             stepErrors.value[field] = "El ID de compañía debe ser numérico";
             isValid = false;
@@ -503,18 +494,13 @@ const submit = () => {
         scrollToForm({ offset: -50 });
         return;
     }
-
-    // 📱 Concatenar código de país + teléfono antes de enviar
     if (currentPhoneCode.value && form.telefono) {
         const numeroLimpio = form.telefono.replace(/\D/g, "");
         form.telefono = currentPhoneCode.value + numeroLimpio;
     }
-
-    // 🏢 Limpiar company_id si está vacío (evitar enviar string vacío)
     if (!form.company_id || form.company_id.trim() === "") {
         form.company_id = null;
     }
-
     form.post(route("register"), {
         forceFormData: true,
         onSuccess: () => {
@@ -546,26 +532,26 @@ onMounted(async () => {
         >
             <div class="max-w-5xl mx-auto">
                 <!-- HEADER -->
-                <div ref="headerRef" class="text-center mb-8">
+                <div ref="headerRef" class="text-center mb-6">
                     <div
-                        class="inline-flex items-center justify-center mb-4 p-3 bg-white rounded-2xl shadow-lg"
+                        class="inline-flex items-center justify-center mb-3 p-2 bg-white rounded-xl shadow"
                     >
                         <AuthenticationCardLogo />
                     </div>
+
                     <h1
-                        class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-2"
+                        class="text-2xl sm:text-3xl font-bold text-gray-900 mb-1"
                     >
-                        Crear tu cuenta
+                        Crear cuenta
                     </h1>
-                    <p class="text-gray-600 text-base max-w-xl mx-auto">
-                        Completa los
-                        <span class="font-semibold text-indigo-600"
-                            >{{ totalSteps }} pasos</span
-                        >
-                        para unirte
+
+                    <p class="text-gray-600 text-sm">
+                        Completa
+                        <span class="font-semibold text-indigo-600">
+                            {{ totalSteps }} pasos
+                        </span>
                     </p>
                 </div>
-
                 <!-- NOTIFICACIÓN DE ERROR -->
                 <Transition name="slide-down">
                     <div
@@ -620,6 +606,7 @@ onMounted(async () => {
 
                 <!-- STEPPER DE PROGRESO -->
                 <div
+                    v-if="currentStep <= 3"
                     class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-6 mb-6"
                 >
                     <div class="flex items-center justify-between relative">
@@ -633,7 +620,6 @@ onMounted(async () => {
                                 width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%`,
                             }"
                         ></div>
-
                         <!-- Pasos -->
                         <button
                             v-for="step in steps"
@@ -714,57 +700,9 @@ onMounted(async () => {
                     class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 scroll-mt-24"
                     id="registro-form"
                 >
-                    <!-- Header del paso actual -->
-                    <div
-                        class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 px-8 py-6"
-                    >
-                        <div class="flex items-center gap-4">
-                            <div
-                                class="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl"
-                            >
-                                {{
-                                    steps.find((s) => s.id === currentStep)
-                                        ?.icon
-                                }}
-                            </div>
-                            <div class="flex-1">
-                                <h2 class="text-xl font-bold text-white">
-                                    {{
-                                        steps.find((s) => s.id === currentStep)
-                                            ?.title
-                                    }}
-                                </h2>
-                                <p class="text-indigo-100 text-sm">
-                                    {{
-                                        steps.find((s) => s.id === currentStep)
-                                            ?.description
-                                    }}
-                                </p>
-                            </div>
-                            <div class="hidden sm:block text-right">
-                                <p class="text-white/80 text-xs font-medium">
-                                    Progreso
-                                </p>
-                                <p class="text-white text-2xl font-bold">
-                                    {{
-                                        Math.round(
-                                            (currentStep / totalSteps) * 100,
-                                        )
-                                    }}%
-                                </p>
-                            </div>
-                        </div>
-                        <div
-                            class="mt-4 h-2 bg-white/20 rounded-full overflow-hidden"
-                        >
-                            <div
-                                class="h-full bg-white rounded-full transition-all duration-700"
-                                :style="{
-                                    width: `${(currentStep / totalSteps) * 100}%`,
-                                }"
-                            ></div>
-                        </div>
-                    </div>
+                    <!-- ============================================
+               🗑️ HEADER ELIMINADO - Ya no aparece
+               ============================================ -->
 
                     <form
                         @submit.prevent="submit"
@@ -850,7 +788,7 @@ onMounted(async () => {
                                 </div>
                             </div>
 
-                            <!-- PASO 2: Ubicación + Teléfono con Código de País -->
+                            <!-- PASO 2: Ubicación + Teléfono -->
                             <div
                                 v-else-if="currentStep === 2"
                                 key="step2"
@@ -973,14 +911,13 @@ onMounted(async () => {
                                     </p>
                                 </div>
 
-                                <!-- Teléfono con Código de País Automático -->
+                                <!-- Teléfono con Código de País -->
                                 <div class="mb-6">
                                     <InputLabel
                                         value="Teléfono"
                                         class="text-gray-700 font-semibold text-sm mb-2"
                                     />
                                     <div class="flex gap-3">
-                                        <!-- Código de País (Auto) -->
                                         <div class="w-24 shrink-0">
                                             <div
                                                 class="mt-0 block w-full rounded-2xl border-2 border-gray-200 bg-gray-100 text-gray-700 font-bold text-center py-4 px-3 text-base"
@@ -992,7 +929,6 @@ onMounted(async () => {
                                                 {{ currentPhoneCode || "—" }}
                                             </div>
                                         </div>
-                                        <!-- Número de Teléfono -->
                                         <div class="flex-1 relative">
                                             <TextInput
                                                 id="telefono"
@@ -1027,7 +963,7 @@ onMounted(async () => {
                                         </svg>
                                         Código de
                                         {{ form.country_name || "país" }}
-                                        detectado automáticamente
+                                        detectado
                                     </p>
                                 </div>
 
@@ -1329,20 +1265,22 @@ onMounted(async () => {
                                                         form.password?.length <
                                                         8,
                                                 }"
-                                                >{{
+                                            >
+                                                {{
                                                     form.password?.length >= 8
                                                         ? "✓"
                                                         : "0"
-                                                }}</span
-                                            >
+                                                }}
+                                            </span>
                                             <span
                                                 :class="{
                                                     'line-through opacity-50':
                                                         form.password?.length >=
                                                         8,
                                                 }"
-                                                >Al menos 8 caracteres</span
                                             >
+                                                Al menos 8 caracteres
+                                            </span>
                                         </li>
                                         <li
                                             class="flex items-center gap-2 text-sm"
@@ -1368,12 +1306,13 @@ onMounted(async () => {
                                                             form.password,
                                                         ),
                                                 }"
-                                                >{{
+                                            >
+                                                {{
                                                     /[A-Z]/.test(form.password)
                                                         ? "✓"
                                                         : "A"
-                                                }}</span
-                                            >
+                                                }}
+                                            </span>
                                             <span
                                                 :class="{
                                                     'line-through opacity-50':
@@ -1381,8 +1320,9 @@ onMounted(async () => {
                                                             form.password,
                                                         ),
                                                 }"
-                                                >Una mayúscula</span
                                             >
+                                                Una mayúscula
+                                            </span>
                                         </li>
                                         <li
                                             class="flex items-center gap-2 text-sm"
@@ -1408,12 +1348,13 @@ onMounted(async () => {
                                                             form.password,
                                                         ),
                                                 }"
-                                                >{{
+                                            >
+                                                {{
                                                     /[0-9]/.test(form.password)
                                                         ? "✓"
                                                         : "1"
-                                                }}</span
-                                            >
+                                                }}
+                                            </span>
                                             <span
                                                 :class="{
                                                     'line-through opacity-50':
@@ -1421,8 +1362,9 @@ onMounted(async () => {
                                                             form.password,
                                                         ),
                                                 }"
-                                                >Un número</span
                                             >
+                                                Un número
+                                            </span>
                                         </li>
                                     </ul>
                                 </div>
@@ -1434,7 +1376,7 @@ onMounted(async () => {
                                 key="step4"
                                 class="space-y-6"
                             >
-                                <!-- 🆕 ID de Compañía -->
+                                <!-- ID de Compañía -->
                                 <div
                                     class="mb-6 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100"
                                 >
@@ -1492,7 +1434,8 @@ onMounted(async () => {
                                             />
                                         </svg>
                                         Si proporcionas un ID, se te asignará el
-                                        rol <strong>Cliente Admin</strong>
+                                        rol
+                                        <strong>Cliente Admin</strong>
                                     </p>
                                 </div>
 
@@ -1654,15 +1597,17 @@ onMounted(async () => {
                                                     :href="route('terms.show')"
                                                     target="_blank"
                                                     class="font-bold text-amber-700 underline"
-                                                    >Términos</a
                                                 >
+                                                    Términos
+                                                </a>
                                                 y la
                                                 <a
                                                     :href="route('policy.show')"
                                                     target="_blank"
                                                     class="font-bold text-amber-700 underline"
-                                                    >Política de Privacidad</a
                                                 >
+                                                    Política de Privacidad
+                                                </a>
                                             </span>
                                         </label>
                                         <p
@@ -1687,8 +1632,9 @@ onMounted(async () => {
                                         Dirección
                                         <span
                                             class="text-xs bg-gray-200 px-2 py-1 rounded-full"
-                                            >Próximamente</span
                                         >
+                                            Próximamente
+                                        </span>
                                     </h3>
                                     <div
                                         class="grid grid-cols-1 md:grid-cols-2 gap-4"
@@ -1795,6 +1741,7 @@ onMounted(async () => {
                         </div>
                     </form>
                 </div>
+
                 <div class="text-center mt-8 text-sm text-gray-400">
                     &copy; {{ new Date().getFullYear() }} Tu Plataforma. Todos
                     los derechos reservados.
@@ -1832,7 +1779,6 @@ onMounted(async () => {
     opacity: 0;
     transform: translateY(-30px);
 }
-
 /* ACCESIBILIDAD */
 :focus-visible {
     outline: 3px solid #6366f1;
@@ -1841,7 +1787,6 @@ onMounted(async () => {
 .scroll-mt-24 {
     scroll-margin-top: 6rem;
 }
-
 /* RESPONSIVE */
 select {
     -webkit-appearance: none;
@@ -1853,7 +1798,6 @@ select:focus {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(99, 102, 241, 0.2);
 }
-
 /* MOBILE - EVITAR TECLADO VIRTUAL */
 @media (max-width: 768px) {
     input:focus {

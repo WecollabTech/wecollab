@@ -21,18 +21,31 @@ Route::apiResource('permisos', PermisoController::class);
 Route::apiResource('categorias', CategoriaController::class);
 Route::apiResource('subcategorias', SubcategoriaController::class);
 
-// routes/api.php - SIN cambiar el controller
-Route::get('/tutoriales', [TutorialController::class, 'index'])->name('tutoriales.index');
-Route::post('/tutoriales', [TutorialController::class, 'store'])->name('tutoriales.store');
+// 🔐 Grupo con middleware COMPLETO de Jetstream para session auth
 
-// ✅ show usa {tutorial} para model binding
-Route::get('/tutoriales/{tutorial}', [TutorialController::class, 'show'])->name('tutoriales.show');
 
-// ⚠️ update/destroy usan {id} porque tu controller espera $id
-Route::put('/tutoriales/{id}', [TutorialController::class, 'update'])->name('tutoriales.update');
-// Route::patch('/tutoriales/{id}', [TutorialController::class, 'update'])->name('tutoriales.update.patch');
-Route::delete('/tutoriales/{id}', [TutorialController::class, 'destroy'])->name('tutoriales.destroy');
+// 📋 Listar TODOS los tutoriales (frontend maneja UI del candado)
+Route::get('/tutoriales', [TutorialController::class, 'index'])
+    ->name('tutoriales.index');
 
-Route::get('/usuarios', function () {
-    return User::all();
-});
+// 👁️ Ver tutorial específico (valida acceso real por rol/alcance)
+Route::get('/tutoriales/{tutorial}', [TutorialController::class, 'show'])
+    ->name('tutoriales.show');
+
+// ✏️ CRUD protegido para administradores
+Route::post('/tutoriales', [TutorialController::class, 'store'])
+    ->name('tutoriales.store');
+
+Route::put('/tutoriales/{id}', [TutorialController::class, 'update'])
+    ->name('tutoriales.update');
+
+Route::patch('/tutoriales/{id}', [TutorialController::class, 'update'])
+    ->name('tutoriales.update.patch');
+
+Route::delete('/tutoriales/{id}', [TutorialController::class, 'destroy'])
+    ->name('tutoriales.destroy');
+
+
+// 🌍 Rutas públicas (sin autenticación)
+Route::get('/tutoriales/public', [TutorialController::class, 'index'])
+    ->name('tutoriales.public');

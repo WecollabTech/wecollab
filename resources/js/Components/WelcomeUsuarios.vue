@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import axios from "axios";
 import { usePage, router } from "@inertiajs/vue3";
+
+// ✅ Usar window.axios (configurado en bootstrap.js con withCredentials, baseURL, CSRF)
+const axios = window.axios;
 
 // 🔷 ESTADO GLOBAL
 const page = usePage();
@@ -56,12 +58,12 @@ const normalize = (str) => {
     return str.toString().toLowerCase().trim();
 };
 
-// 🔷 ✅ FUNCIÓN: ¿El usuario puede ver este tutorial? (con validación ENUM)
+// 🔐 FUNCIÓN: ¿El usuario tiene acceso al tutorial? (para UI del candado)
 const tieneAcceso = (tutorial) => {
     const rolUsuario = normalize(getUserRole());
     const alcanceTutorial = tutorial.alcance;
 
-    // ✅ Validar que el alcance del tutorial sea un valor válido del ENUM
+    // Validar que el alcance sea un valor válido
     if (alcanceTutorial && !ALCANCES_VALIDOS.includes(alcanceTutorial)) {
         console.warn(
             `⚠️ Alcance inválido en tutorial ${tutorial.id}: "${alcanceTutorial}"`,
@@ -69,7 +71,7 @@ const tieneAcceso = (tutorial) => {
         return false;
     }
 
-    // Contenido público (alcance vacío o null): todos lo ven
+    // Contenido público: todos lo ven
     if (!alcanceTutorial || alcanceTutorial.trim() === "") return true;
 
     // Sin rol: solo ve contenidos públicos
@@ -78,26 +80,26 @@ const tieneAcceso = (tutorial) => {
     // Superadmin: ve todo el contenido
     if (rolUsuario === "superadmin we collab") return true;
 
-    // ✅ Match exacto (case-insensitive para comparación)
+    // Match exacto (case-insensitive)
     return normalize(rolUsuario) === normalize(alcanceTutorial);
 };
 
-// 🔷 CARGAR DATOS DESDE API - ✅ CON MEJOR MANEJO DE ERRORES
+// 🔐 FUNCIÓN: ¿El tutorial está bloqueado para este usuario?
+const estaBloqueado = (tutorial) => !tieneAcceso(tutorial);
+
+// 🔷 CARGAR DATOS DESDE API
 onMounted(async () => {
     try {
         error.value = null;
         loading.value = true;
 
-        // ✅ Agregar headers explícitos y timeout
+        // ✅ CON baseURL='/api' en bootstrap.js: usar solo '/tutoriales'
+        // ✅ Headers y cookies ya están configurados globalmente
         const res = await axios.get("/tutoriales", {
-            headers: {
-                Accept: "application/json",
-                "X-Requested-With": "XMLHttpRequest",
-            },
             timeout: 10000,
         });
 
-        // ✅ Validar estructura de respuesta
+        // Validar estructura de respuesta
         if (res.data?.data && Array.isArray(res.data.data)) {
             tutoriales.value = res.data.data;
         } else if (Array.isArray(res.data)) {
@@ -108,9 +110,11 @@ onMounted(async () => {
     } catch (err) {
         console.error("❌ Error cargando tutoriales:", err);
 
-        // ✅ Mensajes más informativos según el tipo de error
+        // Mensajes informativos según el tipo de error
         if (err.response?.status === 401) {
-            error.value = "Debes iniciar sesión para ver el contenido";
+            error.value = "Tu sesión ha expirado. Redirigiendo al login...";
+            // Redirigir al login después de 2 segundos
+            setTimeout(() => router.visit("/login"), 2000);
         } else if (err.response?.status === 403) {
             error.value = "No tienes permisos para acceder a esta sección";
         } else if (err.response?.status === 404) {
@@ -124,9 +128,10 @@ onMounted(async () => {
     }
 });
 
-// 🔷 FILTRADO COMPUTADO
+// 🔷 FILTRADO COMPUTADO - Muestra TODOS los videos (frontend maneja UI del candado)
 const filtrados = computed(() => {
     return tutoriales.value.filter((t) => {
+        // Solo filtrar por estado, tipo y búsqueda (NO por alcance)
         if (t.estado !== "activo") return false;
 
         const tipoOK =
@@ -139,18 +144,17 @@ const filtrados = computed(() => {
             t.titulo?.toLowerCase().includes(search.value.toLowerCase());
         if (!searchOK) return false;
 
-        const alcanceOK = tieneAcceso(t);
-        if (!alcanceOK) return false;
+        // ✅ NO filtrar por alcance: const alcanceOK = tieneAcceso(t);
+        // El frontend muestra candado 🔒 en videos restringidos
 
         return true;
     });
 });
 
-// 🔷 ✅ THUMBNAIL CORREGIDO - Soporte para múltiples formatos de YouTube
+// 🔷 THUMBNAIL DE YOUTUBE - ✅ CORREGIDO (sin espacios en la URL)
 const getThumbnail = (url) => {
     if (!url) return "/img/default.jpg";
 
-    // ✅ Soporte para múltiples formatos de YouTube
     if (url.includes("youtube.com") || url.includes("youtu.be")) {
         let videoId = null;
 
@@ -167,16 +171,16 @@ const getThumbnail = (url) => {
             videoId = url.split("/embed/")[1]?.split(/[?&#]/)[0];
         }
 
-        // ✅ Validar que el ID tenga 11 caracteres (formato válido de YouTube)
+        // Validar que el ID tenga 11 caracteres (formato válido de YouTube)
         if (videoId && videoId.length === 11) {
-            // ✅ SIN ESPACIOS en la URL
+            // ✅ SIN ESPACIOS en la URL (corregido)
             return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
         }
     }
     return "/img/default.jpg";
 };
 
-// 🔷 Helper para obtener color del badge según alcance
+// 🎨 Helper para obtener color del badge según alcance
 const getAlcanceBadgeClass = (alcance) => {
     const colors = {
         "Superadmin We collab": "bg-purple-100 text-purple-800",
@@ -190,12 +194,25 @@ const getAlcanceBadgeClass = (alcance) => {
     return colors[alcance] || "bg-slate-100 text-slate-800";
 };
 
-// 🔷 NAVEGACIÓN
-const verVideo = (tutorial) => router.visit(`/tutorial/${tutorial.id}`);
+// 🔷 NAVEGACIÓN - Bloquea si no tiene acceso
+const verVideo = (tutorial) => {
+    if (estaBloqueado(tutorial)) {
+        // Mostrar mensaje amigable en lugar de navegar
+        alert(
+            `🔒 Este contenido está disponible solo para el rol: "${tutorial.alcance}"\n\nTu rol actual: "${getUserRole() || "Invitado"}"`,
+        );
+        return;
+    }
+    router.visit(`/tutorial/${tutorial.id}`);
+};
+
+// 🔷 ESTILOS DE FILTROS
 const filterClass = (tipo) =>
     tipoSeleccionado.value === tipo
         ? "filter filter-active"
         : "filter filter-inactive";
+
+// 🔷 RESET FILTROS
 const resetFiltros = () => {
     search.value = "";
     tipoSeleccionado.value = "todo";
@@ -271,7 +288,7 @@ const resetFiltros = () => {
                 ></div>
             </div>
 
-            <!-- GRID -->
+            <!-- GRID - MUESTRA TODOS LOS VIDEOS (con candado si está restringido) -->
             <div
                 v-else
                 class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5"
@@ -280,7 +297,12 @@ const resetFiltros = () => {
                     v-for="tutorial in filtrados"
                     :key="tutorial.id"
                     @click="verVideo(tutorial)"
-                    class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition cursor-pointer border border-slate-100"
+                    :class="[
+                        'group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition border border-slate-100',
+                        estaBloqueado(tutorial)
+                            ? 'cursor-not-allowed opacity-75'
+                            : 'cursor-pointer',
+                    ]"
                 >
                     <div class="relative h-40 overflow-hidden bg-slate-200">
                         <img
@@ -289,7 +311,23 @@ const resetFiltros = () => {
                             class="w-full h-full object-cover group-hover:scale-110 transition"
                             @error="$event.target.src = '/img/default.jpg'"
                         />
+
+                        <!-- ✅ OVERLAY DE CANDADO para contenido bloqueado -->
                         <div
+                            v-if="estaBloqueado(tutorial)"
+                            class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10"
+                        >
+                            <span class="text-4xl mb-1">🔒</span>
+                            <span
+                                class="text-white text-xs font-medium text-center px-2"
+                            >
+                                Contenido restringido
+                            </span>
+                        </div>
+
+                        <!-- Overlay Play (solo si tiene acceso) -->
+                        <div
+                            v-if="!estaBloqueado(tutorial)"
                             class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
                         >
                             <div
@@ -298,12 +336,15 @@ const resetFiltros = () => {
                                 ▶
                             </div>
                         </div>
+
+                        <!-- Badge Tipo -->
                         <span
-                            class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] px-2 py-1 rounded"
+                            class="absolute top-2 left-2 bg-blue-600 text-white text-[10px] px-2 py-1 rounded z-20"
                         >
                             {{ tutorial.tipo_material }}
                         </span>
-                        <!-- ✅ Badge de alcance con colores dinámicos -->
+
+                        <!-- Badge Alcance (visible para admins) -->
                         <span
                             v-if="
                                 [
@@ -312,28 +353,40 @@ const resetFiltros = () => {
                                 ].includes(getUserRole()) && tutorial.alcance
                             "
                             :class="getAlcanceBadgeClass(tutorial.alcance)"
-                            class="absolute top-2 right-2 text-[10px] px-2 py-1 rounded font-medium"
+                            class="absolute top-2 right-2 text-[10px] px-2 py-1 rounded font-medium z-20"
                         >
                             {{ tutorial.alcance }}
                         </span>
                     </div>
 
                     <div class="p-3">
-                        <h3 class="text-sm font-semibold line-clamp-1">
+                        <h3
+                            class="text-sm font-semibold line-clamp-1"
+                            :class="
+                                estaBloqueado(tutorial)
+                                    ? 'text-slate-400'
+                                    : 'text-slate-800'
+                            "
+                        >
                             {{ tutorial.titulo }}
                         </h3>
-                        <p class="text-xs text-slate-500 line-clamp-2 mt-1">
+                        <p
+                            class="text-xs text-slate-500 line-clamp-2 mt-1"
+                            :class="estaBloqueado(tutorial) ? 'opacity-60' : ''"
+                        >
                             {{ tutorial.descripcion }}
                         </p>
                         <div
                             class="flex items-center justify-between mt-3 pt-2 border-t border-slate-100"
                         >
-                            <span class="text-[10px] text-slate-400">{{
-                                new Date(
-                                    tutorial.created_at,
-                                ).toLocaleDateString("es-ES")
-                            }}</span>
-                            <!-- ✅ Badge de alcance visible para todos los usuarios -->
+                            <span class="text-[10px] text-slate-400">
+                                {{
+                                    new Date(
+                                        tutorial.created_at,
+                                    ).toLocaleDateString("es-ES")
+                                }}
+                            </span>
+                            <!-- Badge de alcance visible para todos -->
                             <span
                                 v-if="tutorial.alcance"
                                 :class="getAlcanceBadgeClass(tutorial.alcance)"
@@ -365,25 +418,6 @@ const resetFiltros = () => {
                 >
                     Limpiar búsqueda
                 </button>
-            </div>
-
-            <div
-                v-if="
-                    !loading &&
-                    !error &&
-                    tutoriales.length > 0 &&
-                    filtrados.length === 0 &&
-                    !search
-                "
-                class="text-center py-20"
-            >
-                <div class="text-4xl mb-3">🔐</div>
-                <p class="text-slate-600">
-                    No tienes acceso a los contenidos disponibles
-                </p>
-                <p class="text-sm text-slate-400 mt-1">
-                    Tu rol: <strong>{{ getUserRole() || "Invitado" }}</strong>
-                </p>
             </div>
 
             <div

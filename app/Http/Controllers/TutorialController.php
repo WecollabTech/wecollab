@@ -1,49 +1,120 @@
 <?php
+// app/Http/Controllers/TutorialController.php
 
 namespace App\Http\Controllers;
 
 use App\Models\Tutorial;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class TutorialController extends Controller
 {
+    // =========================================================================
+    // 🔐 MÉTODOS AUXILIARES DE SEGURIDAD
+    // =========================================================================
 
+    /**
+     * Obtener rol del usuario como string limpio
+     * ✅ Usa el campo 'nombre' de tu tabla roles
+     */
+    private function obtenerRol($user): string
+    {
+        if (!$user)
+            return '';
+
+        // Si el rol ya es string directo
+        if (is_string($user->role)) {
+            return trim($user->role);
+        }
+
+        // ✅ Si el rol es objeto con campo 'nombre' (tu estructura de BD)
+        if (is_object($user->role)) {
+            return trim($user->role->nombre ?? $user->role->name ?? '');
+        }
+
+        // Si es array (caso edge)
+        if (is_array($user->role)) {
+            return trim($user->role['nombre'] ?? $user->role['name'] ?? '');
+        }
+
+        return '';
+    }
+
+    /**
+     * ✅ Verificar si el usuario es administrador
+     * SOLO estos dos roles exactos de tu BD pueden administrar:
+     * - "Superadmin We collab"
+     * - "Admin We collab"
+     */
+    private function esAdministrador($user): bool
+    {
+        $rolUsuario = $this->obtenerRol($user);
+
+        // ✅ Comparación EXACTA con los valores de tu tabla roles
+        $rolesAdmin = [
+            'Superadmin We collab',  // ← Exactamente como en tu BD
+            'Admin We collab'        // ← Exactamente como en tu BD
+        ];
+
+        return in_array($rolUsuario, $rolesAdmin, true); // true = comparación estricta
+    }
+
+    /**
+     * Verificar si el usuario tiene acceso para VER un tutorial
+     */
+    private function tieneAcceso($tutorial, $user = null): bool
+    {
+        // Contenido público: todos lo ven
+        if (empty($tutorial->alcance) || trim($tutorial->alcance) === '') {
+            return true;
+        }
+
+        if (!$user)
+            return false;
+
+        $rolUsuario = $this->obtenerRol($user);
+        if (empty($rolUsuario))
+            return false;
+
+        // Superadmin ve todo
+        if ($rolUsuario === 'Superadmin We collab') {
+            return true;
+        }
+
+        // ✅ Match exacto con valores de tu BD (case-sensitive)
+        return $rolUsuario === $tutorial->alcance;
+    }
+
+    // =========================================================================
+    // 📋 INDEX - LISTAR TUTORIALES (Todos los usuarios activos)
+    // =========================================================================
 
     public function index(Request $request): JsonResponse
     {
-        $query = Tutorial::query();
+        $query = Tutorial::query()->where('estado', 'activo');
 
-        // Filtrado por búsqueda global
+        // Búsqueda global
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('titulo', 'like', "%{$search}%")
                     ->orWhere('descripcion', 'like', "%{$search}%")
-                    ->orWhere('tipo_material', 'like', "%{$search}%")
-                    ->orWhere('formato', 'like', "%{$search}%")
-                    ->orWhere('alcance', 'like', "%{$search}%")
-                    ->orWhere('estado', 'like', "%{$search}%")
-                    ->orWhere('url', 'like', "%{$search}%")
-                    ->orWhere('observacion', 'like', "%{$search}%");
+                    ->orWhere('tipo_material', 'like', "%{$search}%");
             });
         }
 
-        // Filtrado por tipo de material (opcional)
-        if ($tipo_material = $request->input('tipo_material')) {
-            $query->where('tipo_material', $tipo_material);
+        // Filtro por tipo de material
+        if ($tipo = $request->input('tipo_material')) {
+            $query->where('tipo_material', $tipo);
         }
 
-        // Ordenamiento
-        $sortBy = $request->input('sort_by', 'titulo');
-        $sortOrder = $request->input('sort_order', 'asc');
-        $query->orderBy($sortBy, $sortOrder);
+        // Ordenamiento y paginación
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $perPage = $request->input('per_page', 10);
 
-        // Paginación
-        $perPage = $request->input('per_page', 3); // Por defecto, 10 por página
-        $tutoriales = $query->paginate($perPage);
+        $tutoriales = $query->orderBy($sortBy, $sortOrder)->paginate($perPage);
 
         return response()->json([
             'data' => $tutoriales->items(),
@@ -54,19 +125,45 @@ class TutorialController extends Controller
         ], 200);
     }
 
-
-
-
+    // =========================================================================
+    // ➕ STORE - CREAR TUTORIAL (✅ SOLO: Superadmin We collab, Admin We collab)
+    // =========================================================================
 
     public function store(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $rolUsuario = $this->obtenerRol($user);
+
+        // 🔐 DEBUG: Verificar qué rol está detectando el sistema
+        Log::info('🔍 Debug store - Permisos:', [
+            'user_id' => $user?->id,
+            'role_raw_type' => gettype($user?->role),
+            'role_raw' => $user?->role,
+            'rol_obtenido' => $rolUsuario,
+            'es_admin' => $this->esAdministrador($user),
+            'roles_esperados' => ['Superadmin We collab', 'Admin We collab'],
+        ]);
+
+        // ✅ Validar permisos: SOLO estos dos roles exactos
+        if (!$this->esAdministrador($user)) {
+            return response()->json([
+                'message' => 'No tienes permisos para realizar esta acción',
+                'debug' => config('app.debug') ? [
+                    'tu_rol_detectado' => $rolUsuario,
+                    'roles_requeridos' => ['Superadmin We collab', 'Admin We collab'],
+                    'coincidencia_exacta' => $rolUsuario === 'Superadmin We collab' || $rolUsuario === 'Admin We collab',
+                ] : null
+            ], 403);
+        }
+
         try {
             $validated = $request->validate([
                 'titulo' => 'required|string|max:100|unique:tutoriales,titulo',
                 'descripcion' => 'nullable|string',
                 'tipo_material' => 'required|in:video,manual,guia,post,triptico',
                 'formato' => 'required|in:pdf,word,mp4',
-                'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Publico,Prospecto',
+                // ✅ Valores EXACTOS como en tu tabla roles + alcance de tutoriales
+                'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Público,Prospecto',
                 'estado' => 'required|in:activo,inactivo',
                 'url' => 'nullable|url|max:500',
                 'observacion' => 'nullable|string',
@@ -79,11 +176,15 @@ class TutorialController extends Controller
             ]);
 
             // Convertir strings vacíos a null para foreign keys
-            if (empty($validated['subcategoria_id'])) {
+            if (empty($validated['subcategoria_id']))
                 $validated['subcategoria_id'] = null;
+            if (empty($validated['user_id']))
+                $validated['user_id'] = null;
+
+            // Asignar automáticamente el creador si no se envía
+            if (is_null($validated['user_id']) && $user) {
+                $validated['user_id'] = $user->id;
             }
-
-
 
             $tutorial = Tutorial::create($validated);
 
@@ -93,10 +194,15 @@ class TutorialController extends Controller
             ], 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('Error al crear tutorial: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
 
+        } catch (\Exception $e) {
+            Log::error('❌ Error al crear tutorial: ' . $e->getMessage(), [
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+            ]);
             return response()->json([
                 'message' => 'Error interno del servidor',
                 'error' => config('app.debug') ? $e->getMessage() : null
@@ -104,46 +210,57 @@ class TutorialController extends Controller
         }
     }
 
+    // =========================================================================
+    // 👁️ SHOW - MOSTRAR TUTORIAL (Validación de acceso por rol/alcance)
+    // =========================================================================
 
-
-
-
-
-
-
-
-
-
-
-
-    public function show(Tutorial $tutorial): JsonResponse
+    public function show(Tutorial $tutorial, Request $request): JsonResponse
     {
+        $user = $request->user();
+
         if ($tutorial->estado !== 'activo') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tutorial no disponible'
-            ], 404);
+            return response()->json(['success' => false, 'message' => 'Tutorial no disponible'], 404);
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $tutorial
-        ], 200);
+        if (!$this->tieneAcceso($tutorial, $user)) {
+            return response()->json(['success' => false, 'message' => 'No tienes permiso para ver este contenido'], 403);
+        }
+
+        return response()->json(['success' => true, 'data' => $tutorial], 200);
     }
 
-
-
-
+    // =========================================================================
+    // ✏️ UPDATE - ACTUALIZAR TUTORIAL (✅ SOLO: Superadmin We collab, Admin We collab)
+    // =========================================================================
 
     public function update(Request $request, $id): JsonResponse
     {
+        $user = $request->user();
+        $rolUsuario = $this->obtenerRol($user);
+
+        // 🔐 DEBUG
+        Log::info('🔍 Debug update - Permisos:', [
+            'user_id' => $user?->id,
+            'tutorial_id' => $id,
+            'rol_obtenido' => $rolUsuario,
+            'es_admin' => $this->esAdministrador($user),
+        ]);
+
+        // ✅ Validar permisos: SOLO estos dos roles exactos
+        if (!$this->esAdministrador($user)) {
+            return response()->json([
+                'message' => 'No tienes permisos para realizar esta acción',
+                'debug' => config('app.debug') ? [
+                    'tu_rol_detectado' => $rolUsuario,
+                    'roles_requeridos' => ['Superadmin We collab', 'Admin We collab'],
+                ] : null
+            ], 403);
+        }
+
         try {
             $tutorial = Tutorial::find($id);
-
             if (!$tutorial) {
-                return response()->json([
-                    'message' => 'Tutorial no encontrado'
-                ], 404);
+                return response()->json(['message' => 'Tutorial no encontrado'], 404);
             }
 
             $validated = $request->validate([
@@ -151,7 +268,7 @@ class TutorialController extends Controller
                 'descripcion' => 'nullable|string',
                 'tipo_material' => 'required|in:video,manual,guia,post,triptico',
                 'formato' => 'required|in:pdf,word,mp4',
-                'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Publico,Prospecto',
+                'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Público,Prospecto',
                 'estado' => 'required|in:activo,inactivo',
                 'url' => 'nullable|url|max:500',
                 'observacion' => 'nullable|string',
@@ -162,24 +279,26 @@ class TutorialController extends Controller
                 'titulo.unique' => 'Ya existe un tutorial con este título',
             ]);
 
-            // ✅ Convertir vacío a null
-            if (empty($validated['subcategoria_id'])) {
+            if (empty($validated['subcategoria_id']))
                 $validated['subcategoria_id'] = null;
-            }
 
             $tutorial->update($validated);
+
+            Log::info('✅ Tutorial actualizado', ['id' => $tutorial->id]);
 
             return response()->json([
                 'message' => 'Tutorial actualizado exitosamente',
                 'data' => $tutorial
-            ]);
+            ], 200);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            throw $e;
+            return response()->json([
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
 
         } catch (\Exception $e) {
-            Log::error('Error al actualizar tutorial: ' . $e->getMessage());
-
+            Log::error('❌ Error al actualizar: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Error interno del servidor',
                 'error' => config('app.debug') ? $e->getMessage() : null
@@ -187,40 +306,35 @@ class TutorialController extends Controller
         }
     }
 
+    // =========================================================================
+    // 🗑️ DESTROY - ELIMINAR TUTORIAL (✅ SOLO: Superadmin We collab, Admin We collab)
+    // =========================================================================
 
-
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        return DB::transaction(function () use ($id) {
+        return DB::transaction(function () use ($request, $id) {
+            $user = $request->user();
+
+            if (!$this->esAdministrador($user)) {
+                return response()->json(['message' => 'No tienes permisos'], 403);
+            }
+
             try {
                 $tutorial = Tutorial::find($id);
-
                 if (!$tutorial) {
-                    Log::error("Tutorial no encontrado para eliminar", ['id' => $id]);
                     return response()->json(['message' => 'Tutorial no encontrado'], 404);
                 }
 
                 $tutorial->delete();
-
-                Log::info("Tutorial eliminado correctamente", ['id' => $id]);
+                Log::info('✅ Tutorial eliminado', ['id' => $id]);
 
                 return response()->json(null, 204);
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error("Error al eliminar tutorial", [
-                    'id' => $id,
-                    'error' => $e->getMessage()
-                ]);
-                return response()->json([
-                    'message' => 'Error al eliminar el tutorial'
-                ], 500);
+                Log::error('❌ Error al eliminar: ' . $e->getMessage());
+                return response()->json(['message' => 'Error al eliminar'], 500);
             }
         });
     }
-
-
-
-
-
 }

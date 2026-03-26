@@ -146,7 +146,7 @@ Route::middleware(['auth'])->group(function () {
 
         // ❌ Sin acceso
         if (!$tieneAcceso) {
-            abort(403, 'No tienes permiso para ver este contenido');
+            return Inertia::render('Errors/403');
         }
 
         // ✅ Renderizar vista
