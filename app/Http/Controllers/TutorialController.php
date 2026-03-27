@@ -205,28 +205,6 @@ class TutorialController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
-        $user = $request->user();
-        $rolUsuario = $this->obtenerRol($user);
-
-        // 🔐 DEBUG
-        Log::info('🔍 Debug update - Permisos:', [
-            'user_id' => $user?->id,
-            'tutorial_id' => $id,
-            'rol_obtenido' => $rolUsuario,
-            'es_admin' => $this->esAdministrador($user),
-        ]);
-
-        // ✅ Validar permisos: SOLO estos dos roles exactos
-        if (!$this->esAdministrador($user)) {
-            return response()->json([
-                'message' => 'No tienes permisos para realizar esta acción',
-                'debug' => config('app.debug') ? [
-                    'tu_rol_detectado' => $rolUsuario,
-                    'roles_requeridos' => ['Superadmin We collab', 'Admin We collab'],
-                ] : null
-            ], 403);
-        }
-
         try {
             $tutorial = Tutorial::find($id);
             if (!$tutorial) {
@@ -249,12 +227,11 @@ class TutorialController extends Controller
                 'titulo.unique' => 'Ya existe un tutorial con este título',
             ]);
 
-            if (empty($validated['subcategoria_id']))
+            if (empty($validated['subcategoria_id'])) {
                 $validated['subcategoria_id'] = null;
+            }
 
             $tutorial->update($validated);
-
-            Log::info('✅ Tutorial actualizado', ['id' => $tutorial->id]);
 
             return response()->json([
                 'message' => 'Tutorial actualizado exitosamente',
