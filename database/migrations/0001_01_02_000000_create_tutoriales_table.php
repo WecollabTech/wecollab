@@ -14,7 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->string('titulo', 100)->unique();
             $table->text('descripcion')->nullable();
-            $table->enum('tipo_material', ['video', 'manual', 'guia', 'post', 'triptico'])->nullable();
+            $table->enum('tipo_material', ['video', 'manual', 'guia', 'post', 'triptico', 'avisos importantes'])->nullable();
             $table->enum('formato', ['pdf', 'word', 'mp4'])->nullable();
             $table->enum('alcance', [
                 'Superadmin We collab',

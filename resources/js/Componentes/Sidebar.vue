@@ -10,19 +10,8 @@ const props = defineProps({ showingNavigationDropdown: Boolean });
 const emit = defineEmits(["update:showingNavigationDropdown"]);
 
 // ─────────────────────────────────────────────────────
-// 🔐 ROLES REALES (Exactamente como están en tu tabla "roles")
+// 🔐 IDs y Grupos de Roles (Optimizado - sin objeto ROLES redundante)
 // ─────────────────────────────────────────────────────
-const ROLES = {
-    1: { nombre: "Superadmin We collab", key: "SUPERADMIN_WE_COLLAB" },
-    2: { nombre: "Admin We collab", key: "ADMIN_WE_COLLAB" },
-    3: { nombre: "Suscriptor SLC", key: "SUSCRIPTOR_SLC" },
-    4: { nombre: "Cliente Admin", key: "CLIENTE_ADMIN" },
-    5: { nombre: "Cliente Premium", key: "CLIENTE_PREMIUM" },
-    6: { nombre: "Usuario Público", key: "USUARIO_PUBLICO" },
-    7: { nombre: "Prospecto", key: "PROSPECTO" },
-    8: { nombre: "usuario", key: "USUARIO_ESTANDAR" },
-};
-
 const ROLE_IDS = {
     SUPERADMIN_WE_COLLAB: 1,
     ADMIN_WE_COLLAB: 2,
@@ -199,6 +188,52 @@ const MENU_CONFIG = {
             },
         ],
     },
+    // ✅ NUEVA SECCIÓN: Centro de Recursos
+    recursos: {
+        visible: true,
+        items: [
+            {
+                key: "videos",
+                label: "Videos",
+                icon: "fa-video",
+                href: "/recursos/videos",
+                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
+                description: "Biblioteca de videos de capacitación",
+            },
+            {
+                key: "manuales",
+                label: "Manuales",
+                icon: "fa-book",
+                href: "/recursos/manuales",
+                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
+                description: "Documentación y manuales de uso",
+            },
+            {
+                key: "guias",
+                label: "Guías",
+                icon: "fa-compass",
+                href: "/recursos/guias",
+                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
+                description: "Guías paso a paso",
+            },
+            {
+                key: "posts",
+                label: "Posts",
+                icon: "fa-newspaper",
+                href: "/recursos/posts",
+                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
+                description: "Artículos y novedades",
+            },
+            {
+                key: "tripticos",
+                label: "Trípticos",
+                icon: "fa-file-pdf",
+                href: "/recursos/tripticos",
+                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
+                description: "Material descargable e informativo",
+            },
+        ],
+    },
 };
 
 // ─────────────────────────────────────────────────────
@@ -213,6 +248,7 @@ const getVisibleItems = (sectionKey) => {
 const visibleTutorialItems = computed(() => getVisibleItems("tutorial"));
 const visibleUsuariosItems = computed(() => getVisibleItems("usuarios"));
 const visibleConfigItems = computed(() => getVisibleItems("configuracion"));
+const visibleRecursosItems = computed(() => getVisibleItems("recursos"));
 
 const showTutorialSection = computed(
     () => visibleTutorialItems.value.length > 0 && isRoleActive.value,
@@ -222,6 +258,9 @@ const showUsuariosSection = computed(
 );
 const showConfigSection = computed(
     () => visibleConfigItems.value.length > 0 && isRoleActive.value,
+);
+const showRecursosSection = computed(
+    () => visibleRecursosItems.value.length > 0 && isRoleActive.value,
 );
 
 const isSuperAdminWeCollab = computed(
@@ -238,6 +277,7 @@ const isSubmenuOpen = ref({
     tutorial: false,
     usuarios: false,
     configuracion: false,
+    recursos: false,
 });
 
 const toggleSubmenu = (menu) => {
@@ -534,6 +574,44 @@ onUnmounted(() => {
                 </div>
             </div>
 
+            <!-- 🎓 Sección: Centro de Recursos (NUEVA) -->
+            <div v-if="showRecursosSection" class="mb-2">
+                <button
+                    @click="toggleSubmenu('recursos')"
+                    class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 group"
+                    type="button"
+                    :aria-expanded="isSubmenuOpen.recursos"
+                >
+                    <div class="flex items-center gap-3">
+                        <i
+                            class="fas fa-graduation-cap w-5 h-5 text-white/60 group-hover:text-cyan-400 transition-colors duration-300"
+                        ></i>
+                        <span>Centro de Recursos</span>
+                    </div>
+                    <i
+                        class="fas fa-chevron-down w-4 h-4 text-white/40 transition-all duration-300 group-hover:text-white/70"
+                        :class="{ 'rotate-180': isSubmenuOpen.recursos }"
+                    ></i>
+                </button>
+                <div
+                    v-show="isSubmenuOpen.recursos"
+                    class="mt-1 ml-4 pl-4 border-l-2 border-white/10 space-y-1 overflow-hidden transition-all duration-300"
+                >
+                    <NavLink
+                        v-for="item in visibleRecursosItems"
+                        :key="item.key"
+                        :href="item.href"
+                        class="group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1 transition-all duration-200"
+                        :title="item.description"
+                    >
+                        <i
+                            :class="`fas ${item.icon} w-4 h-4 text-white/50 group-hover:text-cyan-400 transition-colors`"
+                        ></i>
+                        <span>{{ item.label }}</span>
+                    </NavLink>
+                </div>
+            </div>
+
             <!-- ⚠️ MENSAJE: Rol activo pero sin menús disponibles -->
             <div
                 v-else-if="
@@ -542,6 +620,7 @@ onUnmounted(() => {
                         ...visibleTutorialItems,
                         ...visibleUsuariosItems,
                         ...visibleConfigItems,
+                        ...visibleRecursosItems,
                     ].length
                 "
                 class="px-4 py-6"

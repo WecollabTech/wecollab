@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RoleController; // Importa el controlador correcto
 use App\Http\Controllers\PermisoController; // Importa el controlador correcto
 use App\Http\Controllers\CategoriaController; // Importa el controlador correcto
+use App\Http\Controllers\RecursosSLCController;
 use App\Http\Controllers\SubcategoriaController; // Importa el controlador correcto
 use App\Http\Controllers\TutorialController; // Importa el controlador correcto
 use App\Models\User;
@@ -50,3 +51,14 @@ Route::delete('/tutoriales/{id}', [TutorialController::class, 'destroy'])
 // 🌍 Rutas públicas (sin autenticación)
 Route::get('/tutoriales/public', [TutorialController::class, 'index'])
     ->name('tutoriales.public');
+
+
+
+
+//Api para Listar recursos SLC
+
+
+Route::get('/recursos', [RecursosSLCController::class, 'index']);
+Route::post('/recursos', [RecursosSLCController::class, 'store']);
+Route::put('/recursos/{id}', [RecursosSLCController::class, 'update']);
+Route::delete('/recursos/{id}', [RecursosSLCController::class, 'destroy']);

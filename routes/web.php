@@ -1,4 +1,6 @@
 <?php
+
+use App\Http\Controllers\RecursosSLCController;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -178,4 +180,72 @@ Route::middleware([
     Route::get('/usuario', function () {
         return Inertia::render('Usuarios/Index');
     })->name('usuario');
+});
+
+
+
+
+
+
+
+
+// Route::middleware(['auth', 'verified'])->group(function () {
+
+//     Route::prefix('recursos')->group(function () {
+
+//         Route::get('/videos', function () {
+//             return Inertia::render('Recursos/Index', [
+//                 'tipo' => 'video'
+//             ]);
+//         })->name('recursos.videos');
+
+//         Route::get('/manuales', function () {
+//             return Inertia::render('Recursos/Index', [
+//                 'tipo' => 'manual'
+//             ]);
+//         })->name('recursos.manuales');
+
+//         Route::get('/guias', function () {
+//             return Inertia::render('Recursos/Index', [
+//                 'tipo' => 'guia'
+//             ]);
+//         })->name('recursos.guias');
+
+//         Route::get('/posts', function () {
+//             return Inertia::render('Recursos/Index', [
+//                 'tipo' => 'post'
+//             ]);
+//         })->name('recursos.posts');
+
+//         Route::get('/tripticos', function () {
+//             return Inertia::render('Recursos/Index', [
+//                 'tipo' => 'triptico'
+//             ]);
+//         })->name('recursos.tripticos');
+
+//     });
+
+// });
+
+
+
+Route::middleware(['auth', 'verified'])->prefix('recursos')->group(function () {
+
+    // 🌐 Vista general (todos los recursos)
+    Route::get('/', function () {
+        return Inertia::render('Recursos/Index', [
+            'tipo' => 'todos'  // Esto indica que no filtramos por tipo
+        ]);
+    })->name('recursos.index');
+
+    // Listados por tipo
+    Route::get('/videos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'video']))->name('recursos.videos');
+    Route::get('/manuales', fn() => Inertia::render('Recursos/Index', ['tipo' => 'manual']))->name('recursos.manuales');
+    Route::get('/guias', fn() => Inertia::render('Recursos/Index', ['tipo' => 'guia']))->name('recursos.guias');
+    Route::get('/posts', fn() => Inertia::render('Recursos/Index', ['tipo' => 'post']))->name('recursos.posts');
+    Route::get('/tripticos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'triptico']))->name('recursos.tripticos');
+
+    // Crear recurso
+    Route::get('/crear/{tipo}', fn($tipo) => Inertia::render('Recursos/Create', ['tipo' => $tipo]))->name('recursos.create');
+    Route::post('/', [RecursosSLCController::class, 'store'])->name('recursos.store');
 });

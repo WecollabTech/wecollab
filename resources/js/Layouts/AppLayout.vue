@@ -161,7 +161,7 @@ onUnmounted(() => {
                             </button>
 
                             <!-- ✉️ Messages -->
-                            <button
+                            <!-- <button
                                 class="relative p-2.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover:scale-110 group"
                                 title="Mensajes"
                                 aria-label="Mensajes"
@@ -173,7 +173,7 @@ onUnmounted(() => {
                                     class="absolute -top-0.5 -right-0.5 w-5 h-5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-[#1a3080]"
                                     >3</span
                                 >
-                            </button>
+                            </button> -->
 
                             <!-- 👤 PERFIL DROPDOWN -->
                             <div class="relative" style="z-index: 99999">
