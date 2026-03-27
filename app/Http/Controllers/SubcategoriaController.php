@@ -10,17 +10,17 @@ class SubcategoriaController extends Controller
 {
     public function index()
     {
-        $subcategorias = Subcategoria::select('id', 'nombre')
+        $subcategorias = Subcategoria::select('id', 'nombre', 'estado')
             ->whereNotNull('id')
             ->whereNotNull('nombre')
             ->get();
-    
+
         return response()->json([
             'data' => $subcategorias,
             'message' => 'Subcategorías obtenidas correctamente'
         ]);
     }
-    
+
     public function store(Request $request)
     {
         $request->validate([
