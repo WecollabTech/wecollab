@@ -131,38 +131,12 @@ class TutorialController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $rolUsuario = $this->obtenerRol($user);
-
-        // 🔐 DEBUG: Verificar qué rol está detectando el sistema
-        Log::info('🔍 Debug store - Permisos:', [
-            'user_id' => $user?->id,
-            'role_raw_type' => gettype($user?->role),
-            'role_raw' => $user?->role,
-            'rol_obtenido' => $rolUsuario,
-            'es_admin' => $this->esAdministrador($user),
-            'roles_esperados' => ['Superadmin We collab', 'Admin We collab'],
-        ]);
-
-        // ✅ Validar permisos: SOLO estos dos roles exactos
-        if (!$this->esAdministrador($user)) {
-            return response()->json([
-                'message' => 'No tienes permisos para realizar esta acción',
-                'debug' => config('app.debug') ? [
-                    'tu_rol_detectado' => $rolUsuario,
-                    'roles_requeridos' => ['Superadmin We collab', 'Admin We collab'],
-                    'coincidencia_exacta' => $rolUsuario === 'Superadmin We collab' || $rolUsuario === 'Admin We collab',
-                ] : null
-            ], 403);
-        }
-
         try {
             $validated = $request->validate([
                 'titulo' => 'required|string|max:100|unique:tutoriales,titulo',
                 'descripcion' => 'nullable|string',
                 'tipo_material' => 'required|in:video,manual,guia,post,triptico',
                 'formato' => 'required|in:pdf,word,mp4',
-                // ✅ Valores EXACTOS como en tu tabla roles + alcance de tutoriales
                 'alcance' => 'required|in:Superadmin We collab,Admin We collab,Suscriptor SLC,Cliente Admin,Cliente Premium,Usuario Público,Prospecto',
                 'estado' => 'required|in:activo,inactivo',
                 'url' => 'nullable|url|max:500',
@@ -176,14 +150,11 @@ class TutorialController extends Controller
             ]);
 
             // Convertir strings vacíos a null para foreign keys
-            if (empty($validated['subcategoria_id']))
+            if (empty($validated['subcategoria_id'])) {
                 $validated['subcategoria_id'] = null;
-            if (empty($validated['user_id']))
+            }
+            if (empty($validated['user_id'])) {
                 $validated['user_id'] = null;
-
-            // Asignar automáticamente el creador si no se envía
-            if (is_null($validated['user_id']) && $user) {
-                $validated['user_id'] = $user->id;
             }
 
             $tutorial = Tutorial::create($validated);
@@ -209,7 +180,6 @@ class TutorialController extends Controller
             ], 500);
         }
     }
-
     // =========================================================================
     // 👁️ SHOW - MOSTRAR TUTORIAL (Validación de acceso por rol/alcance)
     // =========================================================================
