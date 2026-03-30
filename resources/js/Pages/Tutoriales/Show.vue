@@ -21,8 +21,6 @@ interface Tutorial {
     updated_at: string | null;
 }
 
-type DriveMode = "viewer" | "commentator" | "editor";
-
 // ─────────────────────────────────────────────────────────────
 // 📥 Props y Emits
 // ─────────────────────────────────────────────────────────────
@@ -50,8 +48,6 @@ const contentLoaded = ref(false);
 const isFullscreen = ref(false);
 const playerContainer = ref<HTMLElement | null>(null);
 const embedError = ref(false);
-const driveMode = ref<DriveMode>("viewer"); // Modo por defecto: solo lectura
-const showModeSelector = ref(false);
 
 // ─────────────────────────────────────────────────────────────
 // 🔗 Obtener ID válido con fallback múltiple
@@ -144,64 +140,58 @@ const extractDriveId = (url: string | null): string | null => {
     if (!url) return null;
     const cleanUrl = url.trim();
 
+    // Patrones para diferentes tipos de URLs de Drive
     const patterns = [
+        // Formato: /document/d/ID/edit
         /docs\.google\.com\/(document|spreadsheets|presentation|forms)\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/,
+        // Formato: /file/d/ID/view
         /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/,
+        // Formato: open?id=ID
         /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/,
     ];
 
     for (const pattern of patterns) {
         const match = cleanUrl.match(pattern);
         if (match) {
+            // El ID puede estar en el grupo 1 o 2 según el patrón
             return match[2] || match[1];
         }
     }
     return null;
 };
 
-const getDriveEmbedUrl = (
-    url: string | null,
-    mode: DriveMode = "viewer",
-): string | null => {
+const getDriveEmbedUrl = (url: string | null): string | null => {
     const driveId = extractDriveId(url);
     if (!driveId) return null;
 
+    // Limpiar la URL original para determinar el tipo
     const cleanUrl = url?.toLowerCase() || "";
 
     // Detectar tipo de documento
     let embedUrl = "";
 
     if (cleanUrl.includes("spreadsheets")) {
-        embedUrl = `https://docs.google.com/spreadsheets/d/${driveId}`;
+        // Google Sheets
+        embedUrl = `https://docs.google.com/spreadsheets/d/${driveId}/preview`;
     } else if (cleanUrl.includes("presentation")) {
-        embedUrl = `https://docs.google.com/presentation/d/${driveId}`;
+        // Google Slides
+        embedUrl = `https://docs.google.com/presentation/d/${driveId}/preview`;
     } else if (cleanUrl.includes("forms")) {
-        embedUrl = `https://docs.google.com/forms/d/${driveId}`;
+        // Google Forms
+        embedUrl = `https://docs.google.com/forms/d/${driveId}/viewform`;
     } else {
-        embedUrl = `https://docs.google.com/document/d/${driveId}`;
+        // Google Docs por defecto
+        embedUrl = `https://docs.google.com/document/d/${driveId}/preview`;
     }
 
-    // Agregar modo según la selección
-    let modeParam = "";
-    switch (mode) {
-        case "viewer":
-            modeParam = "/preview";
-            break;
-        case "commentator":
-            modeParam = "/edit?usp=drivesdk&rm=minimal";
-            break;
-        case "editor":
-            modeParam = "/edit?usp=drivesdk";
-            break;
-        default:
-            modeParam = "/preview";
-    }
-
+    // Agregar parámetros para mejor visualización
     const params = new URLSearchParams({
+        usp: "drivesdk",
         embedded: "true",
+        rm: "minimal",
     });
 
-    return `${embedUrl}${modeParam}?${params.toString()}`;
+    return `${embedUrl}?${params.toString()}`;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -230,9 +220,7 @@ const videoEmbedUrl = computed(() => {
 });
 
 const driveEmbedUrl = computed(() => {
-    return tutorial.value?.url
-        ? getDriveEmbedUrl(tutorial.value.url, driveMode.value)
-        : null;
+    return tutorial.value?.url ? getDriveEmbedUrl(tutorial.value.url) : null;
 });
 
 const videoThumbnail = computed(() => {
@@ -264,32 +252,6 @@ const hasThumbnail = computed(() => {
 
 const directLink = computed(() => {
     return tutorial.value?.url || "#";
-});
-
-const modeIcon = computed(() => {
-    switch (driveMode.value) {
-        case "viewer":
-            return "👁️";
-        case "commentator":
-            return "💬";
-        case "editor":
-            return "✏️";
-        default:
-            return "👁️";
-    }
-});
-
-const modeText = computed(() => {
-    switch (driveMode.value) {
-        case "viewer":
-            return "Solo lectura";
-        case "commentator":
-            return "Puede comentar";
-        case "editor":
-            return "Puede editar";
-        default:
-            return "Solo lectura";
-    }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -426,21 +388,6 @@ const handleIframeError = () => {
     contentLoaded.value = true;
 };
 
-const changeDriveMode = (mode: DriveMode) => {
-    driveMode.value = mode;
-    contentLoaded.value = false;
-    embedError.value = false;
-    showModeSelector.value = false;
-    // Pequeño delay para recargar el iframe
-    setTimeout(() => {
-        contentLoaded.value = false;
-    }, 100);
-};
-
-const toggleModeSelector = () => {
-    showModeSelector.value = !showModeSelector.value;
-};
-
 // ─────────────────────────────────────────────────────────────
 // 🔄 Watchers y Lifecycle
 // ─────────────────────────────────────────────────────────────
@@ -455,17 +402,6 @@ watch(
         }
     },
     { immediate: false },
-);
-
-watch(
-    () => driveMode.value,
-    () => {
-        // Resetear estado cuando cambia el modo
-        if (hasValidDocument.value) {
-            contentLoaded.value = false;
-            embedError.value = false;
-        }
-    },
 );
 
 onMounted(() => {
@@ -751,7 +687,6 @@ const getContentTypeText = () => {
                                 class="relative w-full h-full"
                             >
                                 <iframe
-                                    :key="driveMode"
                                     :src="embedUrl"
                                     :title="tutorial.titulo"
                                     class="absolute inset-0 w-full h-full transition-opacity duration-500"
@@ -882,130 +817,6 @@ const getContentTypeText = () => {
                             </div>
                         </div>
 
-                        <!-- Botón de selector de modo (solo para documentos Drive) -->
-                        <div
-                            v-if="contentType === 'document'"
-                            class="absolute top-4 right-4 z-40"
-                        >
-                            <button
-                                @click="toggleModeSelector"
-                                class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 text-white/80 hover:text-white backdrop-blur-md border border-white/20 transition-all text-sm font-medium"
-                                :title="`Modo actual: ${modeText}`"
-                            >
-                                <span>{{ modeIcon }}</span>
-                                <span>{{ modeText }}</span>
-                                <svg
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M19 9l-7 7-7-7"
-                                    />
-                                </svg>
-                            </button>
-
-                            <!-- Dropdown de modos -->
-                            <div
-                                v-if="showModeSelector"
-                                class="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50"
-                            >
-                                <div class="p-2">
-                                    <button
-                                        @click="changeDriveMode('viewer')"
-                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors"
-                                        :class="
-                                            driveMode === 'viewer'
-                                                ? 'bg-blue-50 text-blue-700'
-                                                : 'hover:bg-slate-50 text-slate-700'
-                                        "
-                                    >
-                                        <span class="text-xl">👁️</span>
-                                        <div class="flex-1">
-                                            <p class="text-sm font-medium">
-                                                Solo lectura
-                                            </p>
-                                            <p class="text-xs text-slate-500">
-                                                Ver el documento sin realizar
-                                                cambios
-                                            </p>
-                                        </div>
-                                        <span
-                                            v-if="driveMode === 'viewer'"
-                                            class="text-blue-600"
-                                            >✓</span
-                                        >
-                                    </button>
-
-                                    <button
-                                        @click="changeDriveMode('commentator')"
-                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors"
-                                        :class="
-                                            driveMode === 'commentator'
-                                                ? 'bg-blue-50 text-blue-700'
-                                                : 'hover:bg-slate-50 text-slate-700'
-                                        "
-                                    >
-                                        <span class="text-xl">💬</span>
-                                        <div class="flex-1">
-                                            <p class="text-sm font-medium">
-                                                Puede comentar
-                                            </p>
-                                            <p class="text-xs text-slate-500">
-                                                Agregar comentarios y
-                                                sugerencias
-                                            </p>
-                                        </div>
-                                        <span
-                                            v-if="driveMode === 'commentator'"
-                                            class="text-blue-600"
-                                            >✓</span
-                                        >
-                                    </button>
-
-                                    <button
-                                        @click="changeDriveMode('editor')"
-                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors"
-                                        :class="
-                                            driveMode === 'editor'
-                                                ? 'bg-blue-50 text-blue-700'
-                                                : 'hover:bg-slate-50 text-slate-700'
-                                        "
-                                    >
-                                        <span class="text-xl">✏️</span>
-                                        <div class="flex-1">
-                                            <p class="text-sm font-medium">
-                                                Puede editar
-                                            </p>
-                                            <p class="text-xs text-slate-500">
-                                                Editar el documento directamente
-                                            </p>
-                                        </div>
-                                        <span
-                                            v-if="driveMode === 'editor'"
-                                            class="text-blue-600"
-                                            >✓</span
-                                        >
-                                    </button>
-                                </div>
-
-                                <div
-                                    class="border-t border-slate-100 p-2 bg-slate-50"
-                                >
-                                    <p
-                                        class="text-xs text-slate-500 text-center"
-                                    >
-                                        ⚠️ Los permisos dependen de la
-                                        configuración del documento
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Botón Fullscreen (solo para videos) -->
                         <button
                             v-if="contentType === 'video'"
@@ -1115,7 +926,7 @@ const getContentTypeText = () => {
                             </span>
                         </div>
 
-                        <!-- Instrucciones para documentos con selector de modo -->
+                        <!-- Instrucciones para documentos -->
                         <div
                             v-if="contentType === 'document'"
                             class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg"
@@ -1137,30 +948,22 @@ const getContentTypeText = () => {
                                 </svg>
                                 <div class="text-sm text-blue-800">
                                     <p class="font-medium mb-1">
-                                        💡 Modos de visualización:
+                                        💡 Para visualizar el documento:
                                     </p>
                                     <ul class="list-disc list-inside space-y-1">
                                         <li>
-                                            <strong>👁️ Solo lectura</strong> -
-                                            Visualiza el documento sin hacer
-                                            cambios
+                                            Puedes desplazarte dentro del
+                                            documento usando la barra de scroll
                                         </li>
                                         <li>
-                                            <strong>💬 Puede comentar</strong> -
-                                            Agrega comentarios y sugerencias
+                                            Usa los controles de zoom para
+                                            ajustar la vista
                                         </li>
                                         <li>
-                                            <strong>✏️ Puede editar</strong> -
-                                            Edita el documento directamente
+                                            Si el documento no carga, haz clic
+                                            en "Abrir en Google Drive"
                                         </li>
                                     </ul>
-                                    <p class="mt-2 text-xs text-blue-600">
-                                        ⚠️ Nota: Los permisos reales dependen de
-                                        la configuración del documento en Google
-                                        Drive. Si el documento no permite
-                                        edición, no podrás editarlo aunque
-                                        selecciones ese modo.
-                                    </p>
                                 </div>
                             </div>
                         </div>
