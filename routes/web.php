@@ -77,9 +77,9 @@ Route::middleware([
         return Inertia::render('Tutoriales/Prueba');
     })->name('prueba');
 
-    Route::get('/tutoriales', function () {
-        return Inertia::render('Tutoriales/Index');
-    })->name('tutoriales');
+    // Route::get('/tutoriales', function () {
+    //     return Inertia::render('Tutoriales/Index');
+    // })->name('tutoriales');
 
 
     // Ruta para actualizar un tutorial con Inertia
@@ -103,6 +103,62 @@ Route::middleware([
 
 
 });
+
+
+
+
+Route::middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified',
+])->get('/tutoriales', function () {
+
+    $user = Auth::user();
+    $rol = optional($user->role)->nombre;
+
+    // Solo permitir acceso a Superadmin We collab y Admin We collab
+    if ($rol === 'Superadmin We collab' || $rol === 'Admin We collab') {
+        return Inertia::render('Tutoriales/Index');
+    }
+
+    // Si no tiene permisos, redirigir al dashboard o mostrar error 403
+    abort(403, 'No tienes permisos para acceder a esta página.');
+
+    // O también podrías redirigir:
+    // return redirect()->route('dashboard')->with('error', 'Acceso no autorizado');
+
+})->name('tutoriales');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 Route::middleware(['auth'])->group(function () {
