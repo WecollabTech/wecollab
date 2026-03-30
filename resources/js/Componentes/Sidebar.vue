@@ -820,7 +820,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Upgrade Button (SOLO para Superadmin We collab ID 1 y solo si está activo) -->
-        <div v-if="isSuperAdminWeCollab && isRoleActive" class="p-4">
+        <!-- <div v-if="isSuperAdminWeCollab && isRoleActive" class="p-4">
             <button
                 class="group w-full relative overflow-hidden bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 text-sm shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] active:scale-[0.98]"
                 type="button"
@@ -833,7 +833,7 @@ onUnmounted(() => {
                     <span>Upgrade to pro</span>
                 </span>
             </button>
-        </div>
+        </div> -->
     </aside>
 
     <!-- Overlay para móvil -->
