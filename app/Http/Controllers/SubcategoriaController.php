@@ -10,13 +10,16 @@ class SubcategoriaController extends Controller
 {
     public function index()
     {
-        $subcategorias = Subcategoria::select('id', 'nombre', 'estado')
-            ->whereNotNull('id')
-            ->whereNotNull('nombre')
-            ->get();
+        $subcategorias = Subcategoria::with('categoria')
+            ->select('id', 'nombre', 'estado', 'descripcion', 'categoria_id')
+            ->paginate(10); // o ->get() si quitas la paginación del frontend
 
         return response()->json([
-            'data' => $subcategorias,
+            'data' => $subcategorias->items() ?? $subcategorias,
+            'current_page' => $subcategorias->currentPage() ?? 1,
+            'last_page' => $subcategorias->lastPage() ?? 1,
+            'prev_page_url' => $subcategorias->previousPageUrl(),
+            'next_page_url' => $subcategorias->nextPageUrl(),
             'message' => 'Subcategorías obtenidas correctamente'
         ]);
     }

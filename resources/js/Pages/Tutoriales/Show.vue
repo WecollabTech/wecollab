@@ -21,12 +21,14 @@ interface Tutorial {
     updated_at: string | null;
 }
 
+type DriveMode = "viewer" | "commentator" | "editor";
+
 // ─────────────────────────────────────────────────────────────
 // 📥 Props y Emits
 // ─────────────────────────────────────────────────────────────
 const props = defineProps<{
-    id?: number | string; // ✅ Hacer opcional
-    tutorial?: Tutorial; // ✅ Permitir pasar tutorial desde Inertia
+    id?: number | string;
+    tutorial?: Tutorial;
 }>();
 
 const emit = defineEmits<{
@@ -44,25 +46,21 @@ const tutorial = ref<Tutorial | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const retryCount = ref(0);
-const videoLoaded = ref(false);
+const contentLoaded = ref(false);
 const isFullscreen = ref(false);
 const playerContainer = ref<HTMLElement | null>(null);
+const embedError = ref(false);
+const driveMode = ref<DriveMode>("viewer"); // Modo por defecto: solo lectura
+const showModeSelector = ref(false);
 
 // ─────────────────────────────────────────────────────────────
 // 🔗 Obtener ID válido con fallback múltiple
 // ─────────────────────────────────────────────────────────────
 const getTutorialId = (): number | null => {
-    // 1️⃣ Prioridad: prop id
     if (props.id && props.id !== "undefined" && props.id !== "") {
         return typeof props.id === "string" ? parseInt(props.id) : props.id;
     }
 
-    // 2️⃣ Fallback: tutorial desde Inertia props
-    // if (page.props?.tutorial?.id) {
-    //     return page.props.tutorial.id;
-    // }
-
-    // 3️⃣ Fallback: URL params
     const urlParams = new URLSearchParams(window.location.search);
     const urlId = urlParams.get("id");
     if (urlId && urlId !== "undefined") {
@@ -70,6 +68,30 @@ const getTutorialId = (): number | null => {
     }
 
     return null;
+};
+
+// ─────────────────────────────────────────────────────────────
+// 🔍 Detectar tipo de URL
+// ─────────────────────────────────────────────────────────────
+const isDriveDocument = (url: string | null): boolean => {
+    if (!url) return false;
+    const drivePatterns = [
+        /drive\.google\.com\/file\/d\//,
+        /drive\.google\.com\/open\?id=/,
+        /docs\.google\.com\/(document|spreadsheets|presentation|forms)\/d\//,
+    ];
+    return drivePatterns.some((pattern) => pattern.test(url));
+};
+
+const isYouTubeVideo = (url: string | null): boolean => {
+    if (!url) return false;
+    const youtubePatterns = [
+        /youtu\.be\//,
+        /youtube\.com\/watch/,
+        /youtube\.com\/embed/,
+        /youtube\.com\/shorts/,
+    ];
+    return youtubePatterns.some((pattern) => pattern.test(url));
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -91,14 +113,14 @@ const extractVideoId = (url: string | null): string | null => {
     return null;
 };
 
-const getEmbedUrl = (url: string | null): string | null => {
+const getYouTubeEmbedUrl = (url: string | null): string | null => {
     const videoId = extractVideoId(url);
     if (!videoId) return null;
     const params = new URLSearchParams({
         modestbranding: "1",
         rel: "0",
         controls: "1",
-        fs: "0",
+        fs: "1",
         disablekb: "0",
         iv_load_policy: "3",
         cc_load_policy: "0",
@@ -116,18 +138,158 @@ const getYouTubeThumbnail = (url: string | null): string | null => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// 📄 Google Drive Embed - Extracción de ID de documento
+// ─────────────────────────────────────────────────────────────
+const extractDriveId = (url: string | null): string | null => {
+    if (!url) return null;
+    const cleanUrl = url.trim();
+
+    const patterns = [
+        /docs\.google\.com\/(document|spreadsheets|presentation|forms)\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/,
+        /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/,
+        /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = cleanUrl.match(pattern);
+        if (match) {
+            return match[2] || match[1];
+        }
+    }
+    return null;
+};
+
+const getDriveEmbedUrl = (
+    url: string | null,
+    mode: DriveMode = "viewer",
+): string | null => {
+    const driveId = extractDriveId(url);
+    if (!driveId) return null;
+
+    const cleanUrl = url?.toLowerCase() || "";
+
+    // Detectar tipo de documento
+    let embedUrl = "";
+
+    if (cleanUrl.includes("spreadsheets")) {
+        embedUrl = `https://docs.google.com/spreadsheets/d/${driveId}`;
+    } else if (cleanUrl.includes("presentation")) {
+        embedUrl = `https://docs.google.com/presentation/d/${driveId}`;
+    } else if (cleanUrl.includes("forms")) {
+        embedUrl = `https://docs.google.com/forms/d/${driveId}`;
+    } else {
+        embedUrl = `https://docs.google.com/document/d/${driveId}`;
+    }
+
+    // Agregar modo según la selección
+    let modeParam = "";
+    switch (mode) {
+        case "viewer":
+            modeParam = "/preview";
+            break;
+        case "commentator":
+            modeParam = "/edit?usp=drivesdk&rm=minimal";
+            break;
+        case "editor":
+            modeParam = "/edit?usp=drivesdk";
+            break;
+        default:
+            modeParam = "/preview";
+    }
+
+    const params = new URLSearchParams({
+        embedded: "true",
+    });
+
+    return `${embedUrl}${modeParam}?${params.toString()}`;
+};
+
+// ─────────────────────────────────────────────────────────────
 // 🧮 Computed Properties
 // ─────────────────────────────────────────────────────────────
 const hasValidVideo = computed(() => {
-    return tutorial.value?.url && extractVideoId(tutorial.value.url) !== null;
+    return (
+        tutorial.value?.url &&
+        isYouTubeVideo(tutorial.value.url) &&
+        extractVideoId(tutorial.value.url) !== null
+    );
+});
+
+const hasValidDocument = computed(() => {
+    if (!tutorial.value?.url) return false;
+    const driveId = extractDriveId(tutorial.value.url);
+    return isDriveDocument(tutorial.value.url) && driveId !== null;
+});
+
+const hasValidContent = computed(() => {
+    return hasValidVideo.value || hasValidDocument.value;
 });
 
 const videoEmbedUrl = computed(() => {
-    return tutorial.value?.url ? getEmbedUrl(tutorial.value.url) : null;
+    return tutorial.value?.url ? getYouTubeEmbedUrl(tutorial.value.url) : null;
+});
+
+const driveEmbedUrl = computed(() => {
+    return tutorial.value?.url
+        ? getDriveEmbedUrl(tutorial.value.url, driveMode.value)
+        : null;
 });
 
 const videoThumbnail = computed(() => {
     return tutorial.value?.url ? getYouTubeThumbnail(tutorial.value.url) : null;
+});
+
+const contentType = computed(() => {
+    if (hasValidVideo.value) return "video";
+    if (hasValidDocument.value) return "document";
+    return "unknown";
+});
+
+const embedUrl = computed(() => {
+    if (hasValidVideo.value) return videoEmbedUrl.value;
+    if (hasValidDocument.value) return driveEmbedUrl.value;
+    return null;
+});
+
+const embedTitle = computed(() => {
+    if (contentType.value === "video") return "Video Tutorial";
+    if (contentType.value === "document") return "Documento Google Drive";
+    return "Contenido";
+});
+
+const hasThumbnail = computed(() => {
+    if (contentType.value === "video" && videoThumbnail.value) return true;
+    return false;
+});
+
+const directLink = computed(() => {
+    return tutorial.value?.url || "#";
+});
+
+const modeIcon = computed(() => {
+    switch (driveMode.value) {
+        case "viewer":
+            return "👁️";
+        case "commentator":
+            return "💬";
+        case "editor":
+            return "✏️";
+        default:
+            return "👁️";
+    }
+});
+
+const modeText = computed(() => {
+    switch (driveMode.value) {
+        case "viewer":
+            return "Solo lectura";
+        case "commentator":
+            return "Puede comentar";
+        case "editor":
+            return "Puede editar";
+        default:
+            return "Solo lectura";
+    }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -161,7 +323,7 @@ const handleFullscreenChange = () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 🚫 Bloqueo de interacciones
+// 🚫 Bloqueo de interacciones (solo para videos)
 // ─────────────────────────────────────────────────────────────
 const preventInteraction = (e: Event) => {
     e.preventDefault();
@@ -170,19 +332,18 @@ const preventInteraction = (e: Event) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 📡 Cargar Tutorial desde API - ✅ CORREGIDO
+// 📡 Cargar Tutorial desde API
 // ─────────────────────────────────────────────────────────────
 const fetchTutorial = async () => {
     try {
         loading.value = true;
         error.value = null;
-        videoLoaded.value = false;
+        contentLoaded.value = false;
+        embedError.value = false;
 
-        // ✅ Validar que tenemos un ID válido
         const tutorialId = getTutorialId();
 
         if (!tutorialId || isNaN(tutorialId)) {
-            // ✅ Fallback: usar tutorial desde Inertia props si está disponible
             if (page.props?.tutorial) {
                 tutorial.value = page.props.tutorial as Tutorial;
                 emit("tutorial-loaded", tutorial.value);
@@ -192,7 +353,6 @@ const fetchTutorial = async () => {
             throw new Error("ID de tutorial no válido o no proporcionado");
         }
 
-        // ✅ Intentar con prefijo /api/ primero, luego fallback sin prefijo
         let apiUrl = `/api/tutoriales/${tutorialId}`;
 
         try {
@@ -205,7 +365,6 @@ const fetchTutorial = async () => {
             });
             processTutorialResponse(response.data);
         } catch (primaryError: any) {
-            // ✅ Fallback: intentar sin prefijo /api/ si falla con 404
             if (primaryError.response?.status === 404) {
                 const fallbackUrl = `/tutoriales/${tutorialId}`;
                 const fallbackResponse = await axios.get(fallbackUrl, {
@@ -238,7 +397,6 @@ const fetchTutorial = async () => {
     }
 };
 
-// ✅ Helper para procesar la respuesta de la API
 const processTutorialResponse = (data: any) => {
     const tutorialData: Tutorial = data?.data || data;
 
@@ -263,28 +421,58 @@ const retryLoad = () => {
     }
 };
 
+const handleIframeError = () => {
+    embedError.value = true;
+    contentLoaded.value = true;
+};
+
+const changeDriveMode = (mode: DriveMode) => {
+    driveMode.value = mode;
+    contentLoaded.value = false;
+    embedError.value = false;
+    showModeSelector.value = false;
+    // Pequeño delay para recargar el iframe
+    setTimeout(() => {
+        contentLoaded.value = false;
+    }, 100);
+};
+
+const toggleModeSelector = () => {
+    showModeSelector.value = !showModeSelector.value;
+};
+
 // ─────────────────────────────────────────────────────────────
-// 🔄 Watchers y Lifecycle - ✅ CORREGIDO
+// 🔄 Watchers y Lifecycle
 // ─────────────────────────────────────────────────────────────
 watch(
     () => props.id,
     (newId) => {
         if (newId && newId !== "undefined" && newId !== "") {
-            videoLoaded.value = false;
+            contentLoaded.value = false;
+            embedError.value = false;
             retryCount.value = 0;
             fetchTutorial();
         }
     },
-    { immediate: false }, // ✅ No ejecutar inmediatamente
+    { immediate: false },
+);
+
+watch(
+    () => driveMode.value,
+    () => {
+        // Resetear estado cuando cambia el modo
+        if (hasValidDocument.value) {
+            contentLoaded.value = false;
+            embedError.value = false;
+        }
+    },
 );
 
 onMounted(() => {
-    // ✅ Solo ejecutar fetch si tenemos ID válido o tutorial en props
     const tutorialId = getTutorialId();
     if (tutorialId || page.props?.tutorial) {
         fetchTutorial();
     } else {
-        // ✅ Esperar un tick por si el prop llega después
         setTimeout(() => {
             if (getTutorialId() || page.props?.tutorial) {
                 fetchTutorial();
@@ -358,6 +546,18 @@ const getBadgeConfig = (type: string, value: string) => {
             icon: "•",
         }
     );
+};
+
+const getContentTypeIcon = () => {
+    if (contentType.value === "video") return "🎬";
+    if (contentType.value === "document") return "📄";
+    return "📁";
+};
+
+const getContentTypeText = () => {
+    if (contentType.value === "video") return "Video Tutorial";
+    if (contentType.value === "document") return "Documento Drive";
+    return "Contenido";
 };
 </script>
 
@@ -469,7 +669,7 @@ const getBadgeConfig = (type: string, value: string) => {
 
                 <!-- ✅ Contenido Principal -->
                 <article v-else-if="tutorial" class="space-y-6">
-                    <!-- 🎬 VIDEO PLAYER -->
+                    <!-- 🎬 CONTENIDO EMBED (Video o Documento) -->
                     <section
                         ref="playerContainer"
                         class="relative group/video player-container"
@@ -477,13 +677,15 @@ const getBadgeConfig = (type: string, value: string) => {
                         <div
                             class="relative aspect-video w-full overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-2xl"
                         >
-                            <!-- Thumbnail mientras carga -->
+                            <!-- Loader mientras carga -->
                             <div
-                                v-if="!videoLoaded"
-                                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm"
+                                v-if="!contentLoaded && !embedError"
+                                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm z-10"
                             >
                                 <div
-                                    v-if="videoThumbnail"
+                                    v-if="
+                                        contentType === 'video' && hasThumbnail
+                                    "
                                     class="absolute inset-0 bg-cover bg-center opacity-30"
                                     :style="{
                                         backgroundImage: `url(${videoThumbnail})`,
@@ -493,77 +695,101 @@ const getBadgeConfig = (type: string, value: string) => {
                                         class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent"
                                     ></div>
                                 </div>
-                                <button
-                                    class="relative group/btn cursor-wait focus:outline-none"
-                                    disabled
+                                <div
+                                    class="relative flex flex-col items-center"
                                 >
-                                    <span
-                                        class="absolute inset-0 rounded-full bg-teal-500/30 animate-ping"
-                                    ></span>
-                                    <span
-                                        class="relative flex items-center justify-center w-20 h-20 rounded-full bg-white/10 backdrop-blur-md border border-white/20"
-                                    >
-                                        <svg
-                                            class="w-8 h-8 text-white/80 ml-1"
-                                            fill="currentColor"
-                                            viewBox="0 0 24 24"
+                                    <div class="mb-4 text-6xl">
+                                        {{ getContentTypeIcon() }}
+                                    </div>
+                                    <div class="relative">
+                                        <span
+                                            class="relative flex items-center justify-center w-20 h-20 rounded-full bg-white/10 backdrop-blur-md border border-white/20"
                                         >
-                                            <path d="M8 5v14l11-7z" />
-                                        </svg>
-                                    </span>
-                                </button>
-                                <p
-                                    class="mt-5 text-sm text-slate-400 font-medium animate-pulse"
-                                >
-                                    Cargando video...
-                                </p>
+                                            <svg
+                                                v-if="contentType === 'video'"
+                                                class="w-8 h-8 text-white/80 ml-1"
+                                                fill="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path d="M8 5v14l11-7z" />
+                                            </svg>
+                                            <svg
+                                                v-else
+                                                class="w-8 h-8 text-white/80 animate-spin"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <circle
+                                                    class="opacity-25"
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="10"
+                                                    stroke="currentColor"
+                                                    stroke-width="4"
+                                                ></circle>
+                                                <path
+                                                    class="opacity-75"
+                                                    fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                ></path>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <p
+                                        class="mt-5 text-sm text-slate-400 font-medium animate-pulse"
+                                    >
+                                        Cargando {{ embedTitle }}...
+                                    </p>
+                                </div>
                             </div>
 
-                            <!-- Iframe de YouTube -->
+                            <!-- Iframe de YouTube o Google Drive -->
                             <div
-                                v-if="hasValidVideo && videoEmbedUrl"
+                                v-if="
+                                    hasValidContent && embedUrl && !embedError
+                                "
                                 class="relative w-full h-full"
                             >
                                 <iframe
-                                    :src="videoEmbedUrl"
+                                    :key="driveMode"
+                                    :src="embedUrl"
                                     :title="tutorial.titulo"
                                     class="absolute inset-0 w-full h-full transition-opacity duration-500"
                                     :class="
-                                        videoLoaded
+                                        contentLoaded
                                             ? 'opacity-100'
                                             : 'opacity-0'
                                     "
                                     frameborder="0"
-                                    allow="
-                                        accelerometer;
-                                        autoplay;
-                                        clipboard-write;
-                                        encrypted-media;
-                                        gyroscope;
-                                        picture-in-picture;
-                                        web-share;
+                                    :allow="
+                                        contentType === 'video'
+                                            ? 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share;'
+                                            : ''
                                     "
-                                    allowfullscreen="false"
+                                    :allowfullscreen="contentType === 'video'"
                                     referrerpolicy="strict-origin-when-cross-origin"
                                     loading="lazy"
-                                    @load="videoLoaded = true"
+                                    @load="contentLoaded = true"
+                                    @error="handleIframeError"
                                 ></iframe>
-                                <!-- Overlays de protección -->
+                                <!-- Overlays de protección solo para videos -->
                                 <div
+                                    v-if="contentType === 'video'"
                                     class="absolute top-0 left-0 right-0 h-[12%] z-30 bg-gradient-to-b from-slate-900/70 via-slate-900/30 to-transparent cursor-not-allowed select-none"
                                     @click.prevent="preventInteraction"
                                     @touchstart.prevent="preventInteraction"
                                 ></div>
                                 <div
+                                    v-if="contentType === 'video'"
                                     class="absolute bottom-0 left-0 right-0 h-[15%] z-30 bg-gradient-to-t from-slate-900/85 via-slate-900/40 to-transparent cursor-not-allowed select-none"
                                     @click.prevent="preventInteraction"
                                     @touchstart.prevent="preventInteraction"
                                 ></div>
                             </div>
 
-                            <!-- Video no disponible -->
+                            <!-- Error en el embed -->
                             <div
-                                v-else-if="!hasValidVideo"
+                                v-else-if="embedError"
                                 class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center p-6"
                             >
                                 <svg
@@ -577,16 +803,74 @@ const getBadgeConfig = (type: string, value: string) => {
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
                                         stroke-width="1"
-                                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
                                     />
                                 </svg>
                                 <h3
                                     class="text-xl font-semibold text-white mb-2"
                                 >
-                                    Video no disponible
+                                    No se pudo cargar el contenido
+                                </h3>
+                                <p class="text-slate-400 text-sm max-w-xs mb-4">
+                                    El documento no está disponible o no tiene
+                                    permisos de visualización.
+                                </p>
+                                <div class="flex gap-3">
+                                    <a
+                                        :href="directLink"
+                                        target="_blank"
+                                        class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                                    >
+                                        <svg
+                                            class="w-4 h-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                            />
+                                        </svg>
+                                        Abrir en Google Drive
+                                    </a>
+                                    <button
+                                        @click="emit('report-issue')"
+                                        class="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/90 rounded-lg text-sm font-medium transition-colors"
+                                    >
+                                        Reportar problema
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Contenido no disponible -->
+                            <div
+                                v-else-if="!hasValidContent"
+                                class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center p-6"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-20 w-20 text-amber-400/80 mb-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="1"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    />
+                                </svg>
+                                <h3
+                                    class="text-xl font-semibold text-white mb-2"
+                                >
+                                    Contenido no disponible
                                 </h3>
                                 <p class="text-slate-400 text-sm max-w-xs">
-                                    La URL del video no es compatible o el
+                                    La URL del contenido no es compatible o el
                                     contenido ha sido restringido.
                                 </p>
                                 <button
@@ -598,8 +882,133 @@ const getBadgeConfig = (type: string, value: string) => {
                             </div>
                         </div>
 
-                        <!-- Botón Fullscreen -->
+                        <!-- Botón de selector de modo (solo para documentos Drive) -->
+                        <div
+                            v-if="contentType === 'document'"
+                            class="absolute top-4 right-4 z-40"
+                        >
+                            <button
+                                @click="toggleModeSelector"
+                                class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 text-white/80 hover:text-white backdrop-blur-md border border-white/20 transition-all text-sm font-medium"
+                                :title="`Modo actual: ${modeText}`"
+                            >
+                                <span>{{ modeIcon }}</span>
+                                <span>{{ modeText }}</span>
+                                <svg
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M19 9l-7 7-7-7"
+                                    />
+                                </svg>
+                            </button>
+
+                            <!-- Dropdown de modos -->
+                            <div
+                                v-if="showModeSelector"
+                                class="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50"
+                            >
+                                <div class="p-2">
+                                    <button
+                                        @click="changeDriveMode('viewer')"
+                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors"
+                                        :class="
+                                            driveMode === 'viewer'
+                                                ? 'bg-blue-50 text-blue-700'
+                                                : 'hover:bg-slate-50 text-slate-700'
+                                        "
+                                    >
+                                        <span class="text-xl">👁️</span>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium">
+                                                Solo lectura
+                                            </p>
+                                            <p class="text-xs text-slate-500">
+                                                Ver el documento sin realizar
+                                                cambios
+                                            </p>
+                                        </div>
+                                        <span
+                                            v-if="driveMode === 'viewer'"
+                                            class="text-blue-600"
+                                            >✓</span
+                                        >
+                                    </button>
+
+                                    <button
+                                        @click="changeDriveMode('commentator')"
+                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors"
+                                        :class="
+                                            driveMode === 'commentator'
+                                                ? 'bg-blue-50 text-blue-700'
+                                                : 'hover:bg-slate-50 text-slate-700'
+                                        "
+                                    >
+                                        <span class="text-xl">💬</span>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium">
+                                                Puede comentar
+                                            </p>
+                                            <p class="text-xs text-slate-500">
+                                                Agregar comentarios y
+                                                sugerencias
+                                            </p>
+                                        </div>
+                                        <span
+                                            v-if="driveMode === 'commentator'"
+                                            class="text-blue-600"
+                                            >✓</span
+                                        >
+                                    </button>
+
+                                    <button
+                                        @click="changeDriveMode('editor')"
+                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors"
+                                        :class="
+                                            driveMode === 'editor'
+                                                ? 'bg-blue-50 text-blue-700'
+                                                : 'hover:bg-slate-50 text-slate-700'
+                                        "
+                                    >
+                                        <span class="text-xl">✏️</span>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium">
+                                                Puede editar
+                                            </p>
+                                            <p class="text-xs text-slate-500">
+                                                Editar el documento directamente
+                                            </p>
+                                        </div>
+                                        <span
+                                            v-if="driveMode === 'editor'"
+                                            class="text-blue-600"
+                                            >✓</span
+                                        >
+                                    </button>
+                                </div>
+
+                                <div
+                                    class="border-t border-slate-100 p-2 bg-slate-50"
+                                >
+                                    <p
+                                        class="text-xs text-slate-500 text-center"
+                                    >
+                                        ⚠️ Los permisos dependen de la
+                                        configuración del documento
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botón Fullscreen (solo para videos) -->
                         <button
+                            v-if="contentType === 'video'"
                             @click="toggleFullscreen"
                             class="absolute top-4 right-4 z-40 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/40 hover:bg-black/60 text-white/80 hover:text-white backdrop-blur-md border border-white/20 transition-all"
                             :title="
@@ -637,6 +1046,14 @@ const getBadgeConfig = (type: string, value: string) => {
                                 />
                             </svg>
                         </button>
+
+                        <!-- Badge de tipo de contenido -->
+                        <div
+                            class="absolute top-4 left-4 z-40 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/20 text-white text-xs font-medium"
+                        >
+                            <span>{{ getContentTypeIcon() }}</span>
+                            <span>{{ embedTitle }}</span>
+                        </div>
                     </section>
 
                     <!-- 📋 Información del Tutorial -->
@@ -689,6 +1106,63 @@ const getBadgeConfig = (type: string, value: string) => {
                                 }}</span>
                                 {{ tutorial.alcance }}
                             </span>
+                            <span
+                                v-if="contentType === 'document'"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium bg-blue-50 text-blue-700"
+                            >
+                                <span>📄</span>
+                                Documento Google Drive
+                            </span>
+                        </div>
+
+                        <!-- Instrucciones para documentos con selector de modo -->
+                        <div
+                            v-if="contentType === 'document'"
+                            class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg"
+                        >
+                            <div class="flex items-start gap-2">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                </svg>
+                                <div class="text-sm text-blue-800">
+                                    <p class="font-medium mb-1">
+                                        💡 Modos de visualización:
+                                    </p>
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li>
+                                            <strong>👁️ Solo lectura</strong> -
+                                            Visualiza el documento sin hacer
+                                            cambios
+                                        </li>
+                                        <li>
+                                            <strong>💬 Puede comentar</strong> -
+                                            Agrega comentarios y sugerencias
+                                        </li>
+                                        <li>
+                                            <strong>✏️ Puede editar</strong> -
+                                            Edita el documento directamente
+                                        </li>
+                                    </ul>
+                                    <p class="mt-2 text-xs text-blue-600">
+                                        ⚠️ Nota: Los permisos reales dependen de
+                                        la configuración del documento en Google
+                                        Drive. Si el documento no permite
+                                        edición, no podrás editarlo aunque
+                                        selecciones ese modo.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Fechas -->
@@ -833,5 +1307,22 @@ const getBadgeConfig = (type: string, value: string) => {
 }
 ::-webkit-scrollbar-thumb:hover {
     background: rgb(148 163 184 / 0.8);
+}
+
+iframe {
+    border: none;
+    background: white;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+.animate-spin {
+    animation: spin 1s linear infinite;
 }
 </style>

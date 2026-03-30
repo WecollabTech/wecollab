@@ -56,6 +56,14 @@ const userRoleId = computed(() => userRole.value?.id);
 const userRoleName = computed(() => userRole.value?.nombre);
 const isRoleActive = computed(() => userRole.value?.estado === "activo");
 
+// ✅ VERIFICAR si el usuario es Superadmin o Admin We collab (IDs 1 y 2)
+const hasFullAccess = computed(() => {
+    return (
+        userRoleId.value === ROLE_IDS.SUPERADMIN_WE_COLLAB ||
+        userRoleId.value === ROLE_IDS.ADMIN_WE_COLLAB
+    );
+});
+
 // ─────────────────────────────────────────────────────
 // 🔒 VALIDACIÓN DE ACCESO (FAIL-CLOSED - Seguro por defecto)
 // ─────────────────────────────────────────────────────
@@ -188,7 +196,6 @@ const MENU_CONFIG = {
             },
         ],
     },
-    // ✅ NUEVA SECCIÓN: Centro de Recursos
     recursos: {
         visible: true,
         items: [
@@ -237,11 +244,16 @@ const MENU_CONFIG = {
 };
 
 // ─────────────────────────────────────────────────────
-// 🔍 FILTRADO DINÁMICO DE ITEMS (con validación de estado)
+// 🔍 FILTRADO DINÁMICO DE ITEMS (SOLO para Superadmin/Admin)
 // ─────────────────────────────────────────────────────
 const getVisibleItems = (sectionKey) => {
     const section = MENU_CONFIG[sectionKey];
     if (!section?.items || !isRoleActive.value) return [];
+
+    // Si NO tiene acceso total (no es Superadmin/Admin), NO mostrar NADA
+    if (!hasFullAccess.value) return [];
+
+    // Si tiene acceso total, mostrar según roles definidos
     return section.items.filter((item) => canAccess(item.roles));
 };
 
@@ -250,18 +262,27 @@ const visibleUsuariosItems = computed(() => getVisibleItems("usuarios"));
 const visibleConfigItems = computed(() => getVisibleItems("configuracion"));
 const visibleRecursosItems = computed(() => getVisibleItems("recursos"));
 
-const showTutorialSection = computed(
-    () => visibleTutorialItems.value.length > 0 && isRoleActive.value,
-);
-const showUsuariosSection = computed(
-    () => visibleUsuariosItems.value.length > 0 && isRoleActive.value,
-);
-const showConfigSection = computed(
-    () => visibleConfigItems.value.length > 0 && isRoleActive.value,
-);
-const showRecursosSection = computed(
-    () => visibleRecursosItems.value.length > 0 && isRoleActive.value,
-);
+// ✅ Determinar qué secciones mostrar (SOLO para Superadmin/Admin)
+const showTutorialSection = computed(() => {
+    if (!isRoleActive.value) return false;
+    // Solo mostrar si tiene acceso total Y hay items visibles
+    return hasFullAccess.value && visibleTutorialItems.value.length > 0;
+});
+
+const showUsuariosSection = computed(() => {
+    if (!isRoleActive.value) return false;
+    return hasFullAccess.value && visibleUsuariosItems.value.length > 0;
+});
+
+const showConfigSection = computed(() => {
+    if (!isRoleActive.value) return false;
+    return hasFullAccess.value && visibleConfigItems.value.length > 0;
+});
+
+const showRecursosSection = computed(() => {
+    if (!isRoleActive.value) return false;
+    return hasFullAccess.value && visibleRecursosItems.value.length > 0;
+});
 
 const isSuperAdminWeCollab = computed(
     () => userRoleId.value === ROLE_IDS.SUPERADMIN_WE_COLLAB,
@@ -313,7 +334,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <!-- ✅ CORRECCIÓN PRINCIPAL: lg:static → lg:fixed para que no se mueva al hacer scroll -->
     <aside
         :class="{
             'translate-x-0': showingNavigationDropdown,
@@ -378,11 +398,10 @@ onUnmounted(() => {
             </button>
         </div>
 
-        <!-- ✅ Navigation con scroll interno (solo el menú se desplaza) -->
         <nav
             class="flex-1 px-4 py-6 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)]"
         >
-            <!-- Dashboard (Visible solo si rol está activo) -->
+            <!-- Dashboard (Visible para todos los roles activos) -->
             <div class="mb-6" v-if="isRoleActive">
                 <NavLink
                     :href="route('dashboard')"
@@ -419,15 +438,6 @@ onUnmounted(() => {
                 </NavLink>
             </div>
 
-            <!-- Separador "Components" (Solo si rol activo) -->
-            <div class="px-4 mb-2" v-if="isRoleActive">
-                <p
-                    class="text-xs font-semibold text-white/40 uppercase tracking-wider"
-                >
-                    Components
-                </p>
-            </div>
-
             <!-- ⚠️ MENSAJE: Rol inactivo -->
             <div v-if="!isRoleActive" class="px-4 py-6">
                 <div
@@ -445,7 +455,23 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- 📚 Sección: Tutorial -->
+            <!-- 🔒 MENSAJE: Usuario sin permisos (rol activo pero no es Superadmin/Admin) -->
+            <div v-else-if="!hasFullAccess" class="px-4 py-6">
+                <div
+                    class="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl text-center"
+                >
+                    <i class="fas fa-lock text-blue-400 text-xl mb-2 block"></i>
+                    <p class="text-sm font-medium text-white/90">
+                        Acceso Restringido
+                    </p>
+                    <p class="text-xs text-white/60 mt-1">
+                        Tu rol "{{ userRoleName }}" no tiene permisos para
+                        acceder a los menús.
+                    </p>
+                </div>
+            </div>
+
+            <!-- 📚 Sección: Tutorial (SOLO para Superadmin/Admin) -->
             <div v-if="showTutorialSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('tutorial')"
@@ -483,7 +509,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- 👥 Sección: Usuarios -->
+            <!-- 👥 Sección: Usuarios (SOLO para Superadmin/Admin) -->
             <div v-if="showUsuariosSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('usuarios')"
@@ -531,7 +557,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- ⚙️ Sección: Configuración -->
+            <!-- ⚙️ Sección: Configuración (SOLO para Superadmin/Admin) -->
             <div v-if="showConfigSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('configuracion')"
@@ -574,7 +600,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- 🎓 Sección: Centro de Recursos (NUEVA) -->
+            <!-- 🎓 Sección: Centro de Recursos (SOLO para Superadmin/Admin) -->
             <div v-if="showRecursosSection" class="mb-2">
                 <button
                     @click="toggleSubmenu('recursos')"
@@ -609,34 +635,6 @@ onUnmounted(() => {
                         ></i>
                         <span>{{ item.label }}</span>
                     </NavLink>
-                </div>
-            </div>
-
-            <!-- ⚠️ MENSAJE: Rol activo pero sin menús disponibles -->
-            <div
-                v-else-if="
-                    isRoleActive &&
-                    ![
-                        ...visibleTutorialItems,
-                        ...visibleUsuariosItems,
-                        ...visibleConfigItems,
-                        ...visibleRecursosItems,
-                    ].length
-                "
-                class="px-4 py-6"
-            >
-                <div
-                    class="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl text-center"
-                >
-                    <i
-                        class="fas fa-info-circle text-blue-400 text-xl mb-2 block"
-                    ></i>
-                    <p class="text-sm font-medium text-white/90">
-                        Menú personalizado
-                    </p>
-                    <p class="text-xs text-white/60 mt-1">
-                        Tu rol "{{ userRoleName }}" tiene acceso limitado.
-                    </p>
                 </div>
             </div>
         </nav>
@@ -856,7 +854,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* ✅ Scrollbar solo para el nav interno (no para todo el aside) */
 nav::-webkit-scrollbar {
     width: 4px;
 }
@@ -871,7 +868,6 @@ nav::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.4);
 }
 
-/* Scrollbar para aside (fallback) */
 aside::-webkit-scrollbar {
     width: 6px;
 }
@@ -895,12 +891,10 @@ aside::-webkit-scrollbar-thumb:hover {
     );
 }
 
-/* Animación de rotación para iconos de submenu */
 .rotate-180 {
     transform: rotate(180deg);
 }
 
-/* Transiciones para animaciones Vue */
 .v-enter-active,
 .v-leave-active {
     transition: all 0.3s ease;
@@ -911,7 +905,6 @@ aside::-webkit-scrollbar-thumb:hover {
     transform: translateY(-10px);
 }
 
-/* Animación suave para el indicador de estado activo */
 @keyframes pulse-slow {
     0%,
     100% {

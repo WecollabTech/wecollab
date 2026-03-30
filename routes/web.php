@@ -229,14 +229,40 @@ Route::middleware([
 
 
 
+// Route::middleware(['auth', 'verified'])->prefix('recursos')->group(function () {
+
+//     // 🌐 Vista general (todos los recursos)
+//     Route::get('/', function () {
+//         return Inertia::render('Recursos/Index', [
+//             'tipo' => 'todos'  // Esto indica que no filtramos por tipo
+//         ]);
+//     })->name('recursos.index');
+
+//     // Listados por tipo
+//     Route::get('/videos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'video']))->name('recursos.videos');
+//     Route::get('/manuales', fn() => Inertia::render('Recursos/Index', ['tipo' => 'manual']))->name('recursos.manuales');
+//     Route::get('/guias', fn() => Inertia::render('Recursos/Index', ['tipo' => 'guia']))->name('recursos.guias');
+//     Route::get('/posts', fn() => Inertia::render('Recursos/Index', ['tipo' => 'post']))->name('recursos.posts');
+//     Route::get('/tripticos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'triptico']))->name('recursos.tripticos');
+
+//     // Crear recurso
+//     Route::get('/crear/{tipo}', fn($tipo) => Inertia::render('Recursos/Create', ['tipo' => $tipo]))->name('recursos.create');
+//     Route::post('/', [RecursosSLCController::class, 'store'])->name('recursos.store');
+// });
+
+
+
+
+
+
+
+
+
+
 Route::middleware(['auth', 'verified'])->prefix('recursos')->group(function () {
 
     // 🌐 Vista general (todos los recursos)
-    Route::get('/', function () {
-        return Inertia::render('Recursos/Index', [
-            'tipo' => 'todos'  // Esto indica que no filtramos por tipo
-        ]);
-    })->name('recursos.index');
+    Route::get('/', [RecursosSLCController::class, 'index'])->name('recursos.index');
 
     // Listados por tipo
     Route::get('/videos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'video']))->name('recursos.videos');
@@ -245,7 +271,26 @@ Route::middleware(['auth', 'verified'])->prefix('recursos')->group(function () {
     Route::get('/posts', fn() => Inertia::render('Recursos/Index', ['tipo' => 'post']))->name('recursos.posts');
     Route::get('/tripticos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'triptico']))->name('recursos.tripticos');
 
+    // ✅ RUTAS PARA VER RECURSOS INDIVIDUALES (URL AMIGABLES)
+    Route::get('/videos/{id}', [RecursosSLCController::class, 'show'])->name('recursos.videos.show');
+    Route::get('/manuales/{id}', [RecursosSLCController::class, 'show'])->name('recursos.manuales.show');
+    Route::get('/guias/{id}', [RecursosSLCController::class, 'show'])->name('recursos.guias.show');
+    Route::get('/posts/{id}', [RecursosSLCController::class, 'show'])->name('recursos.posts.show');
+    Route::get('/tripticos/{id}', [RecursosSLCController::class, 'show'])->name('recursos.tripticos.show');
+
+    // 🔗 RUTA DE REDIRECCIÓN PARA COMPARTIR (NO EXPONE LA URL REAL)
+    Route::get('/compartir/{id}', function ($id) {
+        return Inertia::render('Recursos/Redirect', ['id' => $id]);
+    })->name('recursos.share');
+
     // Crear recurso
-    Route::get('/crear/{tipo}', fn($tipo) => Inertia::render('Recursos/Create', ['tipo' => $tipo]))->name('recursos.create');
+    Route::get('/crear/{tipo}', [RecursosSLCController::class, 'create'])->name('recursos.create');
     Route::post('/', [RecursosSLCController::class, 'store'])->name('recursos.store');
+
+    // Editar recurso
+    Route::get('/{id}/edit', [RecursosSLCController::class, 'edit'])->name('recursos.edit');
+    Route::put('/{id}', [RecursosSLCController::class, 'update'])->name('recursos.update');
+
+    // Eliminar recurso
+    Route::delete('/{id}', [RecursosSLCController::class, 'destroy'])->name('recursos.destroy');
 });

@@ -55,10 +55,14 @@ Route::get('/tutoriales/public', [TutorialController::class, 'index'])
 
 
 
-//Api para Listar recursos SLC
+//Routas Api
 
 
-Route::get('/recursos', [RecursosSLCController::class, 'index']);
-Route::post('/recursos', [RecursosSLCController::class, 'store']);
-Route::put('/recursos/{id}', [RecursosSLCController::class, 'update']);
-Route::delete('/recursos/{id}', [RecursosSLCController::class, 'destroy']);
+// Rutas API para recursos
+Route::prefix('recursos')->group(function () {
+    Route::get('/', [RecursosSLCController::class, 'indexApi']);
+    Route::get('/{id}', [RecursosSLCController::class, 'showApi']);
+    Route::post('/', [RecursosSLCController::class, 'storeApi']);
+    Route::put('/{id}', [RecursosSLCController::class, 'updateApi']);
+    Route::delete('/{id}', [RecursosSLCController::class, 'destroyApi']);
+});
