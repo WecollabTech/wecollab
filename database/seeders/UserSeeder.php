@@ -14,8 +14,8 @@ class UserSeeder extends Seeder
 
         $users = [
             [
-                'name' => 'SuperAdminJose',
-                'apellido' => 'WeCollab',
+                'name' => 'Jose Gonzalez',
+                'apellido' => 'Leon',
                 'email' => 'superadminjose@we-collab.tech',
                 'password' => $password,
                 'status' => 'activo',
@@ -25,8 +25,8 @@ class UserSeeder extends Seeder
                 'role_id' => 1, // Superadmin
             ],
             [
-                'name' => 'SuperAdminVictor',
-                'apellido' => 'WeCollab',
+                'name' => 'Victor Antonio',
+                'apellido' => 'Gomez',
                 'email' => 'superadminvictor@we-collab.tech',
                 'password' => $password,
                 'status' => 'activo',
@@ -36,8 +36,8 @@ class UserSeeder extends Seeder
                 'role_id' => 1, // Superadmin
             ],
             [
-                'name' => 'AdminWecollabAndres',
-                'apellido' => 'Administrador',
+                'name' => 'Andres',
+                'apellido' => 'Marin',
                 'email' => 'adminandres@we-collab.tech',
                 'password' => $password,
                 'status' => 'activo',
@@ -47,9 +47,9 @@ class UserSeeder extends Seeder
                 'role_id' => 2, // Admin we collab
             ],
             [
-                'name' => 'UsuarioPublicoVic',
-                'apellido' => 'Publico',
-                'email' => 'publicovic@we-collab.tech',
+                'name' => 'Victor',
+                'apellido' => 'Gomez',
+                'email' => 'victorgomez@we-collab.tech',
                 'password' => $password,
                 'status' => 'activo',
                 'company_id' => null,
@@ -58,9 +58,9 @@ class UserSeeder extends Seeder
                 'role_id' => 8, // Usuario Público
             ],
             [
-                'name' => 'UsuarioPublicoJose',
-                'apellido' => 'Publico',
-                'email' => 'publicojose@we-collab.tech',
+                'name' => 'Jose ',
+                'apellido' => 'Gonzalez',
+                'email' => 'josegonzalez@we-collab.tech',
                 'password' => $password,
                 'status' => 'activo',
                 'company_id' => null,
