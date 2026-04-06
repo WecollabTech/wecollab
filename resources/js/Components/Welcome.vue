@@ -621,7 +621,7 @@ onMounted(() => {
                                 🎬 Últimos tutoriales
                             </h3>
                             <button
-                                @click="irA('/tutoriales')"
+                                @click="irA('/recursos')"
                                 class="text-xs text-indigo-600 hover:underline"
                             >
                                 Ver todos
