@@ -80,7 +80,7 @@ const validateForm = () => {
 const fetchSubcategorias = async () => {
     try {
         loading.value = true;
-        const response = await axios.get("/subcategorias");
+        const response = await axios.get("/subcategorias/all");
 
         subcategorias.value = (response.data?.data || response.data || [])
             .filter((sub) => sub?.id && sub?.nombre)

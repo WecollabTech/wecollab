@@ -1,14 +1,15 @@
 <?php
 
 namespace App\Models;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Tutorial extends Model
 {
     use HasFactory;
-    protected $table = 'tutoriales'; // Especifica explícitamente el nombre de la tabla
+
+    protected $table = 'tutoriales';
 
     protected $fillable = [
         'titulo',
@@ -19,38 +20,54 @@ class Tutorial extends Model
         'estado',
         'url',
         'observacion',
+        'categorias_id',      // ✅ CORRECTO: con S
         'subcategoria_id',
-        'user_id'
+        'user_id',
+        'vistas'
     ];
-
-
-
 
     protected $casts = [
-        'created_at' => 'datetime:Y-m-d H:i:s',
-        'updated_at' => 'datetime:Y-m-d H:i:s',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'vistas' => 'integer'
     ];
 
-    protected function url(): Attribute
+    // ✅ Relacion con Categoria (usando categorias_id)
+    public function categoria()
     {
-        return Attribute::make(
-            get: fn($value) => $value ? trim($value) : null,
-        );
+        return $this->belongsTo(Categoria::class, 'categorias_id');
     }
 
-    /**
-     * Relación con la subcategoría.
-     */
+    // Relacion con Subcategoria
     public function subcategoria()
     {
-        return $this->belongsTo(Subcategoria::class);
+        return $this->belongsTo(Subcategoria::class, 'subcategoria_id');
     }
 
-    /**
-     * Relación con el usuario que creó el tutorial.
-     */
+    // Relacion con usuario
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // Scopes
+    public function scopeActivo($query)
+    {
+        return $query->where('estado', 'activo');
+    }
+
+    public function scopePorTipo($query, $tipo)
+    {
+        return $query->where('tipo_material', $tipo);
+    }
+
+    public function scopePorCategoria($query, $categoriaId)
+    {
+        return $query->where('categorias_id', $categoriaId);
+    }
+
+    public function scopePorSubcategoria($query, $subcategoriaId)
+    {
+        return $query->where('subcategoria_id', $subcategoriaId);
     }
 }

@@ -1,19 +1,54 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import axios from "axios";
-import { router } from "@inertiajs/vue3";
+import { router, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
-// ─────────────────────────────────────────────────────────────
+// 🔷 USUARIO Y ROLES
+const page = usePage();
+const user = computed(() => page.props.auth?.user);
+
+// 🔷 Obtener rol del usuario normalizado
+const getUserRole = () => {
+    const role = user.value?.role;
+    if (!role) return "Invitado";
+
+    if (typeof role === "object") {
+        const roleName =
+            role.nombre?.toString() ||
+            role.name?.toString() ||
+            role.slug?.toString() ||
+            role.role?.toString() ||
+            "";
+        return roleName.trim();
+    }
+    return role.toString().trim();
+};
+
+// 🔷 Roles IMPORTANTES que tienen acceso completo
+const ROLES_IMPORTANTES = ["Superadmin we collab", "Admin we collab"];
+
+// 🔷 Computed: ¿Usuario es un rol importante?
+const esRolImportante = computed(() => {
+    const role = getUserRole();
+    return ROLES_IMPORTANTES.includes(role);
+});
+
+// 🔷 Computed: ¿Usuario puede agregar materiales? (solo roles importantes)
+const puedeAgregar = computed(() => esRolImportante.value);
+
+// 🔷 Computed: ¿Usuario puede editar/eliminar? (solo roles importantes)
+const puedeEditarEliminar = computed(() => esRolImportante.value);
+
+// 🔷 Computed: ¿Usuario puede compartir? (solo roles importantes)
+const puedeCompartir = computed(() => esRolImportante.value);
+
 // 📋 PROPS
-// ─────────────────────────────────────────────────────────────
 const props = defineProps({
     tipo: { type: String, required: false, default: "todos" },
 });
 
-// ─────────────────────────────────────────────────────────────
 // 📊 ESTADO REACTIVO
-// ─────────────────────────────────────────────────────────────
 const recursos = ref([]);
 const search = ref("");
 const searchDebounced = ref("");
@@ -68,87 +103,83 @@ const tiposDisponibles = [
     },
     {
         value: "triptico",
-        label: "Tríptico",
+        label: "Infografia",
         icon: "🎨",
         route: "tripticos",
         color: "violet",
     },
     {
         value: "avisos importantes",
-        label: "Avisos",
+        label: "Avisos Importantes",
         icon: "⚠️",
         route: "avisos",
         color: "red",
     },
 ];
 
-// ─────────────────────────────────────────────────────────────
-// 🎨 CONFIGURACIÓN DE TIPOS Y ESTILOS
-// ─────────────────────────────────────────────────────────────
+// Configuración de tipos
 const tipoConfig = {
     video: {
         icon: "🎬",
         gradient: "from-rose-500 via-pink-500 to-rose-600",
         gradientSoft: "from-rose-50 to-pink-50",
-        badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
-        text: "text-rose-600 dark:text-rose-400",
+        badge: "bg-rose-100 text-rose-700",
+        text: "text-rose-600",
         route: "videos",
     },
     manual: {
         icon: "📚",
         gradient: "from-blue-500 via-cyan-500 to-blue-600",
         gradientSoft: "from-blue-50 to-cyan-50",
-        badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-        text: "text-blue-600 dark:text-blue-400",
+        badge: "bg-blue-100 text-blue-700",
+        text: "text-blue-600",
         route: "manuales",
     },
     guia: {
         icon: "🧭",
         gradient: "from-emerald-500 via-teal-500 to-emerald-600",
         gradientSoft: "from-emerald-50 to-teal-50",
-        badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-        text: "text-emerald-600 dark:text-emerald-400",
+        badge: "bg-emerald-100 text-emerald-700",
+        text: "text-emerald-600",
         route: "guias",
     },
     post: {
         icon: "📝",
         gradient: "from-amber-500 via-orange-500 to-amber-600",
         gradientSoft: "from-amber-50 to-orange-50",
-        badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-        text: "text-amber-600 dark:text-amber-400",
+        badge: "bg-amber-100 text-amber-700",
+        text: "text-amber-600",
         route: "posts",
     },
     triptico: {
         icon: "🎨",
         gradient: "from-violet-500 via-purple-500 to-violet-600",
         gradientSoft: "from-violet-50 to-purple-50",
-        badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
-        text: "text-violet-600 dark:text-violet-400",
+        badge: "bg-violet-100 text-violet-700",
+        text: "text-violet-600",
         route: "tripticos",
     },
     "avisos importantes": {
         icon: "⚠️",
         gradient: "from-red-500 via-orange-500 to-red-600",
         gradientSoft: "from-red-50 to-orange-50",
-        badge: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-        text: "text-red-600 dark:text-red-400",
+        badge: "bg-red-100 text-red-700",
+        text: "text-red-600",
         route: "avisos",
     },
     default: {
         icon: "📦",
         gradient: "from-gray-500 via-slate-500 to-gray-600",
         gradientSoft: "from-gray-50 to-slate-50",
-        badge: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-        text: "text-gray-600 dark:text-gray-400",
+        badge: "bg-gray-100 text-gray-700",
+        text: "text-gray-600",
         route: "todos",
     },
 };
 
 const getTipoConfig = (tipo) => tipoConfig[tipo] || tipoConfig.default;
 
-// ─────────────────────────────────────────────────────────────
-// 🎬 FUNCIONES PARA CONTENIDO EMBEBIDO
-// ─────────────────────────────────────────────────────────────
+// YouTube helper
 const extractYouTubeId = (url) => {
     if (!url) return null;
     const patterns = [
@@ -172,9 +203,8 @@ const getYouTubeEmbedUrl = (url) => {
 
 const getVimeoEmbedUrl = (url) => {
     const match = url.match(/vimeo\.com\/(\d+)/);
-    if (match && match[1]) {
+    if (match && match[1])
         return `https://player.vimeo.com/video/${match[1]}?title=0&byline=0&portrait=0`;
-    }
     return url;
 };
 
@@ -184,9 +214,7 @@ const getVideoThumbnail = (url) => {
     return null;
 };
 
-// ─────────────────────────────────────────────────────────────
-// 🔍 DEBOUNCE + SUGERENCIAS
-// ─────────────────────────────────────────────────────────────
+// Debounce
 let debounceTimer = null;
 const handleSearchInput = (value) => {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -209,9 +237,7 @@ const handleSearchInput = (value) => {
 };
 watch(search, (val) => handleSearchInput(val));
 
-// ─────────────────────────────────────────────────────────────
-// 🔄 CARGA DE DATOS
-// ─────────────────────────────────────────────────────────────
+// Carga de datos
 const loadData = async () => {
     loading.value = true;
     error.value = null;
@@ -259,9 +285,7 @@ const loadDataFromUrl = async (url) => {
     }
 };
 
-// ─────────────────────────────────────────────────────────────
-// 📋 FILTRADO Y ORDENAMIENTO
-// ─────────────────────────────────────────────────────────────
+// Filtrado y ordenamiento
 const recursosFiltrados = computed(() => {
     let lista = [...recursos.value];
 
@@ -291,9 +315,7 @@ const recursosFiltrados = computed(() => {
     return lista;
 });
 
-// ─────────────────────────────────────────────────────────────
-// 🛠️ UTILIDADES
-// ─────────────────────────────────────────────────────────────
+// Utilidades
 const formatDate = (str) => {
     if (!str) return "";
     const date = new Date(str);
@@ -317,19 +339,17 @@ const showNotification = (message, type = "success") => {
 const copyToClipboard = async (text) => {
     try {
         await navigator.clipboard.writeText(text);
-        showNotification("✅ Enlace copiado al portapapeles");
+        showNotification("Enlace copiado al portapapeles");
     } catch (err) {
         console.error("Error al copiar:", err);
-        showNotification("❌ Error al copiar el enlace", "error");
+        showNotification("Error al copiar el enlace", "error");
     }
 };
 
-// ─────────────────────────────────────────────────────────────
-// 🔧 ACCIONES CRUD
-// ─────────────────────────────────────────────────────────────
+// CRUD
 const handleCreate = () => {
     const tipoParam = props.tipo !== "todos" ? props.tipo : "video";
-    router.visit(`/recursos/crear/${tipoParam}`);
+    router.visit(route("recursos.create", { tipo: tipoParam }));
 };
 
 const handleView = (resource) => {
@@ -338,7 +358,7 @@ const handleView = (resource) => {
 };
 
 const handleEdit = (resource) => {
-    router.visit(`/recursos/${resource.id}/edit`);
+    router.visit(route("recursos.edit", { id: resource.id }));
 };
 
 const handleDelete = (resource) => {
@@ -348,14 +368,13 @@ const handleDelete = (resource) => {
 
 const confirmDelete = async () => {
     if (!resourceToDelete.value) return;
-
     try {
         await axios.delete(`/recursos/${resourceToDelete.value.id}`);
-        showNotification("✅ Recurso eliminado correctamente");
+        showNotification("Recurso eliminado correctamente");
         loadData();
     } catch (err) {
         console.error("Error al eliminar:", err);
-        showNotification("❌ Error al eliminar el recurso", "error");
+        showNotification("Error al eliminar el recurso", "error");
     } finally {
         showDeleteModal.value = false;
         resourceToDelete.value = null;
@@ -368,16 +387,11 @@ const handleShare = (resource) => {
     showShareModal.value = true;
 };
 
-const copyShareLink = () => {
-    copyToClipboard(shareLink.value);
-};
+const copyShareLink = () => copyToClipboard(shareLink.value);
 
 const toggleTypeFilter = (tipo) => {
-    if (activeTypeFilters.value.has(tipo)) {
-        activeTypeFilters.value.delete(tipo);
-    } else {
-        activeTypeFilters.value.add(tipo);
-    }
+    if (activeTypeFilters.value.has(tipo)) activeTypeFilters.value.delete(tipo);
+    else activeTypeFilters.value.add(tipo);
     loadData();
 };
 
@@ -400,9 +414,7 @@ const selectSuggestion = (suggestion) => {
     loadData();
 };
 
-// ─────────────────────────────────────────────────────────────
-// LIFECYCLE
-// ─────────────────────────────────────────────────────────────
+// Lifecycle
 onMounted(() => {
     if (props.tipo && props.tipo !== "todos") {
         activeTypeFilters.value.clear();
@@ -411,16 +423,14 @@ onMounted(() => {
     loadData();
 });
 
-watch([searchDebounced, sortBy, activeTypeFilters], () => {
-    loadData();
-});
+watch([searchDebounced, sortBy, activeTypeFilters], () => loadData());
 </script>
 
 <template>
     <AppLayout
         :title="`Recursos • ${props.tipo?.toUpperCase() || 'BIBLIOTECA'}`"
     >
-        <!-- FONDO ANIMADO -->
+        <!-- Fondo animado -->
         <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
             <div
                 class="absolute -top-40 -right-40 h-96 w-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"
@@ -439,7 +449,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
             <!-- HEADER -->
             <header class="mb-8">
                 <div
-                    class="relative overflow-hidden rounded-2xl bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl transition-all duration-300 hover:shadow-2xl"
+                    class="relative overflow-hidden rounded-2xl bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl"
                 >
                     <div class="relative p-5 sm:p-6 lg:p-7">
                         <div
@@ -458,14 +468,14 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                 </div>
                                 <div>
                                     <h1
-                                        class="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent"
+                                        class="text-base sm:text-lg lg:text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent"
                                     >
                                         {{
                                             activeTypeFilters.size > 0
                                                 ? `Recursos Filtrados (${activeTypeFilters.size})`
                                                 : props.tipo !== "todos"
                                                   ? `Recursos de ${props.tipo}`
-                                                  : "Todos los Recursos"
+                                                  : "Lista de Materiales"
                                         }}
                                     </h1>
                                     <p
@@ -483,7 +493,9 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                             </div>
 
                             <div class="flex flex-wrap items-center gap-3">
+                                <!-- 🔐 BOTÓN AGREGAR - SOLO para roles importantes -->
                                 <button
+                                    v-if="puedeAgregar"
                                     @click="handleCreate"
                                     class="group relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105"
                                 >
@@ -503,7 +515,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                                 d="M12 4v16m8-8H4"
                                             />
                                         </svg>
-                                        Agregar Recurso
+                                        Agregar Material
                                     </span>
                                     <span
                                         class="absolute inset-0 -translate-x-full bg-gradient-to-r from-indigo-600 to-purple-700 transition-transform duration-300 group-hover:translate-x-0"
@@ -591,9 +603,9 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                     v-model="sortBy"
                                     class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 text-sm"
                                 >
-                                    <option value="recent">🕐 Recientes</option>
-                                    <option value="title">🔤 A-Z</option>
-                                    <option value="format">📁 Formato</option>
+                                    <option value="recent">Recientes</option>
+                                    <option value="title">A-Z</option>
+                                    <option value="format">Formato</option>
                                 </select>
                             </div>
                         </div>
@@ -650,8 +662,6 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                     </svg>
                                 </button>
                             </div>
-
-                            <!-- Sugerencias -->
                             <div
                                 v-if="
                                     isSearchFocused &&
@@ -731,22 +741,21 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                     ></span
                                     ><span
                                         class="relative rounded-full h-2 w-2 bg-emerald-500"
-                                    ></span
-                                ></span>
-                                <span>Activos: {{ stats.activos }}</span>
+                                    ></span></span
+                                ><span>Activos: {{ stats.activos }}</span>
                             </div>
                             <div class="flex items-center gap-1.5">
                                 <span
                                     class="h-2 w-2 rounded-full bg-gray-300"
-                                ></span>
-                                <span>Totales: {{ stats.total }}</span>
+                                ></span
+                                ><span>Totales: {{ stats.total }}</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <!-- ERROR STATE -->
+            <!-- ERROR -->
             <div
                 v-if="error"
                 class="mb-8 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700"
@@ -761,7 +770,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                 </button>
             </div>
 
-            <!-- SKELETON LOADING -->
+            <!-- SKELETON -->
             <div v-if="loading" class="space-y-3">
                 <div
                     v-for="i in 5"
@@ -815,7 +824,9 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                 >
                                     Estado
                                 </th>
+                                <!-- 🔐 COLUMNA ACCIONES - SOLO para roles importantes -->
                                 <th
+                                    v-if="puedeEditarEliminar"
                                     class="px-6 py-4 text-right text-xs font-semibold uppercase"
                                 >
                                     Acciones
@@ -884,23 +895,26 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : 'bg-gray-100 text-gray-600',
                                         ]"
-                                    >
-                                        <span
+                                        ><span
                                             :class="[
                                                 'h-1.5 w-1.5 rounded-full',
                                                 r.estado === 'activo'
                                                     ? 'bg-emerald-500'
                                                     : 'bg-gray-400',
                                             ]"
-                                        ></span>
-                                        {{
+                                        ></span
+                                        >{{
                                             r.estado === "activo"
                                                 ? "Activo"
                                                 : "Inactivo"
-                                        }}
-                                    </span>
+                                        }}</span
+                                    >
                                 </td>
-                                <td class="px-6 py-4">
+                                <!-- 🔐 BOTONES DE ACCIÓN - SOLO para roles importantes -->
+                                <td
+                                    v-if="puedeEditarEliminar"
+                                    class="px-6 py-4"
+                                >
                                     <div
                                         class="flex items-center justify-end gap-1"
                                     >
@@ -943,6 +957,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                             </svg>
                                         </button>
                                         <button
+                                            v-if="puedeCompartir"
                                             @click.stop="handleShare(r)"
                                             class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                                             title="Compartir"
@@ -977,6 +992,32 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                                     stroke-linejoin="round"
                                                     stroke-width="2"
                                                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <!-- 🔐 Para roles NO importantes: SOLO botón VER -->
+                                <td v-else class="px-6 py-4">
+                                    <div
+                                        class="flex items-center justify-end gap-1"
+                                    >
+                                        <button
+                                            @click.stop="handleView(r)"
+                                            class="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
+                                            title="Ver"
+                                        >
+                                            <svg
+                                                class="h-5 w-5"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                                                 />
                                             </svg>
                                         </button>
@@ -1029,8 +1070,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                     getTipoConfig(r.tipo_material)?.badge,
                                 ]"
                                 >{{ r.tipo_material }}</span
-                            >
-                            <span
+                            ><span
                                 class="px-2 py-1 rounded-full bg-gray-100 text-xs"
                                 >{{ r.formato }}</span
                             >
@@ -1045,22 +1085,23 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                         ? 'text-emerald-600'
                                         : 'text-gray-400',
                                 ]"
-                            >
-                                <span
+                                ><span
                                     :class="[
                                         'h-2 w-2 rounded-full',
                                         r.estado === 'activo'
                                             ? 'bg-emerald-500'
                                             : 'bg-gray-300',
                                     ]"
-                                ></span>
-                                {{
+                                ></span
+                                >{{
                                     r.estado === "activo"
                                         ? "Activo"
                                         : "Inactivo"
-                                }}
-                            </span>
-                            <div class="flex gap-1">
+                                }}</span
+                            >
+
+                            <!-- 🔐 BOTONES EN VISTA GRID - SOLO para roles importantes -->
+                            <div v-if="puedeEditarEliminar" class="flex gap-1">
                                 <button
                                     @click.stop="handleView(r)"
                                     class="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg"
@@ -1081,6 +1122,26 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                     </svg>
                                 </button>
                                 <button
+                                    @click.stop="handleEdit(r)"
+                                    class="p-1.5 text-gray-400 hover:text-amber-600 rounded-lg"
+                                    title="Editar"
+                                >
+                                    <svg
+                                        class="h-4 w-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                        />
+                                    </svg>
+                                </button>
+                                <button
+                                    v-if="puedeCompartir"
                                     @click.stop="handleShare(r)"
                                     class="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg"
                                     title="Compartir"
@@ -1096,6 +1157,48 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                             stroke-linejoin="round"
                                             stroke-width="2"
                                             d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                                        />
+                                    </svg>
+                                </button>
+                                <button
+                                    @click.stop="handleDelete(r)"
+                                    class="p-1.5 text-gray-400 hover:text-red-600 rounded-lg"
+                                    title="Eliminar"
+                                >
+                                    <svg
+                                        class="h-4 w-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- 🔐 Para roles NO importantes: SOLO botón VER en grid -->
+                            <div v-else class="flex gap-1">
+                                <button
+                                    @click.stop="handleView(r)"
+                                    class="p-1.5 text-indigo-600 hover:text-indigo-800 rounded-lg"
+                                    title="Ver"
+                                >
+                                    <svg
+                                        class="h-5 w-5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                                         />
                                     </svg>
                                 </button>
@@ -1138,6 +1241,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                     }}
                 </p>
                 <button
+                    v-if="puedeAgregar"
                     @click="handleCreate"
                     class="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-2.5 text-white font-semibold hover:shadow-lg transition-all"
                 >
@@ -1182,7 +1286,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
             </nav>
         </div>
 
-        <!-- MODAL DE ELIMINACIÓN -->
+        <!-- MODAL ELIMINACIÓN -->
         <Teleport to="body">
             <div
                 v-if="showDeleteModal"
@@ -1232,9 +1336,8 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                 @click="showDeleteModal = false"
                                 class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
                             >
-                                Cancelar
-                            </button>
-                            <button
+                                Cancelar</button
+                            ><button
                                 @click="confirmDelete"
                                 class="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-lg"
                             >
@@ -1246,7 +1349,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
             </div>
         </Teleport>
 
-        <!-- MODAL DE COMPARTIR -->
+        <!-- MODAL COMPARTIR -->
         <Teleport to="body">
             <div
                 v-if="showShareModal"
@@ -1289,7 +1392,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                         </div>
                         <div class="mb-4 p-3 bg-blue-50 rounded-lg">
                             <p class="text-xs text-blue-700 mb-2">
-                                🔒 Enlace seguro y personalizado:
+                                Enlace seguro y personalizado:
                             </p>
                             <p class="text-xs text-gray-500">
                                 Este enlace no expone la URL original del
@@ -1302,8 +1405,7 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                                 type="text"
                                 readonly
                                 class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 text-sm focus:outline-none"
-                            />
-                            <button
+                            /><button
                                 @click="copyShareLink"
                                 class="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg"
                             >
@@ -1323,10 +1425,10 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
             </div>
         </Teleport>
 
-        <!-- TOAST NOTIFICACIÓN -->
+        <!-- TOAST -->
         <Teleport to="body">
-            <Transition name="toast">
-                <div
+            <Transition name="toast"
+                ><div
                     v-if="showToast"
                     :class="[
                         'fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg transition-all',
@@ -1335,37 +1437,9 @@ watch([searchDebounced, sortBy, activeTypeFilters], () => {
                             : 'bg-red-500 text-white',
                     ]"
                 >
-                    <svg
-                        v-if="toastType === 'success'"
-                        class="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M5 13l4 4L19 7"
-                        />
-                    </svg>
-                    <svg
-                        v-else
-                        class="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"
-                        />
-                    </svg>
                     <span class="text-sm">{{ toastMessage }}</span>
-                </div>
-            </Transition>
+                </div></Transition
+            >
         </Teleport>
     </AppLayout>
 </template>

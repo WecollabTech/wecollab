@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Categoria;
+use App\Models\Subcategoria;
 use App\Models\Tutorial;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +20,7 @@ class RecursosSLCController extends Controller
         try {
             $query = Tutorial::query();
 
-            // Filtro por tipo
+            // Filtro por tipo (coincide con ENUM de BD)
             if ($request->has('tipo') && $request->tipo !== 'todos') {
                 $query->where('tipo_material', $request->tipo);
             }
@@ -84,8 +86,25 @@ class RecursosSLCController extends Controller
      */
     public function index(Request $request)
     {
+        $tipo = $request->get('tipo', 'todos');
+
+        // ✅ Tipos permitidos - Coinciden con ENUM de la BD
+        $tiposPermitidos = [
+            'todos',
+            'video',
+            'manual',
+            'guia',
+            'post',
+            'triptico',
+            'avisos importantes'  // ✅ Valor exacto del ENUM
+        ];
+
+        if (!in_array($tipo, $tiposPermitidos)) {
+            $tipo = 'todos';
+        }
+
         return Inertia::render('Recursos/Index', [
-            'tipo' => $request->get('tipo', 'todos')
+            'tipo' => $tipo
         ]);
     }
 
@@ -111,6 +130,20 @@ class RecursosSLCController extends Controller
      */
     public function create($tipo)
     {
+        // ✅ Tipos permitidos para crear - Coinciden con ENUM de la BD
+        $tiposPermitidos = [
+            'video',
+            'manual',
+            'guia',
+            'post',
+            'triptico',
+            'avisos importantes'  // ✅ Valor exacto del ENUM
+        ];
+
+        if (!in_array($tipo, $tiposPermitidos)) {
+            $tipo = 'video';
+        }
+
         return Inertia::render('Recursos/Create', [
             'tipo' => $tipo
         ]);
@@ -128,8 +161,11 @@ class RecursosSLCController extends Controller
                 'url' => 'nullable|url',
                 'formato' => 'nullable|string|max:50',
                 'alcance' => 'nullable|string|max:50',
-                'tipo_material' => 'required|string|max:50',
+                'tipo_material' => 'required|string|in:video,manual,guia,post,triptico,avisos importantes',
                 'estado' => 'required|in:activo,inactivo,borrador',
+                'categorias_id' => 'nullable|exists:categorias,id',
+                'subcategoria_id' => 'nullable|exists:subcategorias,id',
+                'observacion' => 'nullable|string',
             ]);
 
             $recurso = Tutorial::create($validated);
@@ -158,8 +194,11 @@ class RecursosSLCController extends Controller
                 'url' => 'nullable|url',
                 'formato' => 'nullable|string|max:50',
                 'alcance' => 'nullable|string|max:50',
-                'tipo_material' => 'required|string|max:50',
+                'tipo_material' => 'required|string|in:video,manual,guia,post,triptico,avisos importantes',
                 'estado' => 'required|in:activo,inactivo,borrador',
+                'categorias_id' => 'nullable|exists:categorias,id',
+                'subcategoria_id' => 'nullable|exists:subcategorias,id',
+                'observacion' => 'nullable|string',
             ]);
 
             Tutorial::create($validated);
@@ -175,15 +214,19 @@ class RecursosSLCController extends Controller
      */
     public function edit($id)
     {
-        try {
-            $recurso = Tutorial::findOrFail($id);
+        // Buscar el tutorial por ID
+        $tutorial = Tutorial::with(['categoria', 'subcategoria'])->find($id);
 
-            return Inertia::render('Recursos/Edit', [
-                'recurso' => $recurso
-            ]);
-        } catch (\Exception $e) {
-            abort(404, 'Recurso no encontrado');
+        if (!$tutorial) {
+            abort(404, 'Tutorial no encontrado');
         }
+
+        return Inertia::render('Recursos/Edit', [
+            'id' => $tutorial->id,
+            'tutorial' => $tutorial,
+            'categorias' => Categoria::where('estado', 'activo')->get(),
+            'subcategorias' => Subcategoria::where('estado', 'activo')->get(),
+        ]);
     }
 
     /**
@@ -200,8 +243,11 @@ class RecursosSLCController extends Controller
                 'url' => 'nullable|url',
                 'formato' => 'nullable|string|max:50',
                 'alcance' => 'nullable|string|max:50',
-                'tipo_material' => 'sometimes|string|max:50',
+                'tipo_material' => 'sometimes|string|in:video,manual,guia,post,triptico,avisos importantes',
                 'estado' => 'sometimes|in:activo,inactivo,borrador',
+                'categorias_id' => 'nullable|exists:categorias,id',
+                'subcategoria_id' => 'nullable|exists:subcategorias,id',
+                'observacion' => 'nullable|string',
             ]);
 
             $recurso->update($validated);
@@ -232,8 +278,11 @@ class RecursosSLCController extends Controller
                 'url' => 'nullable|url',
                 'formato' => 'nullable|string|max:50',
                 'alcance' => 'nullable|string|max:50',
-                'tipo_material' => 'required|string|max:50',
+                'tipo_material' => 'required|string|in:video,manual,guia,post,triptico,avisos importantes',
                 'estado' => 'required|in:activo,inactivo,borrador',
+                'categorias_id' => 'nullable|exists:categorias,id',
+                'subcategoria_id' => 'nullable|exists:subcategorias,id',
+                'observacion' => 'nullable|string',
             ]);
 
             $recurso->update($validated);

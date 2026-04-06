@@ -1,47 +1,49 @@
 <?php
 
+use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\RecursosSLCController;
+use App\Http\Controllers\SubcategoriaController;
+use App\Http\Controllers\TutorialController;
+use App\Http\Controllers\UserManagementController;
 use Illuminate\Http\Request;
-use Illuminate\Foundation\Application;
+
+
+use App\Models\Tutorial;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Models\Tutorial;
-use App\Http\Controllers\TutorialController;
-use App\Http\Middleware\CheckRole; // Si tienes el middleware para comprobar roles
-use App\Http\Middleware\CheckPermission;
-use App\Models\Subcategoria;
-use App\Models\User;
-use Illuminate\Support\Facades\Auth;
+
+// =========================================================================
+// RUTAS PÚBLICAS
+// =========================================================================
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
-        // 'laravelVersion' => Application::VERSION,
-        // 'phpVersion' => PHP_VERSION,
     ]);
 });
+
+// =========================================================================
+// RUTAS AUTENTICADAS (DASHBOARD)
+// =========================================================================
 
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
     'verified',
 ])->get('/dashboard', function () {
-
     $user = Auth::user();
-
     $rol = optional($user->role)->nombre;
-
-    if ($rol === 'Superadmin We collab' || $rol === 'Admin We collab') {
+    if ($rol === 'Superadmin we collab' || $rol === 'Admin We collab') {
         return Inertia::render('Dashboard');
     }
-
     return Inertia::render('Usuarios');
-
 })->name('dashboard');
 
-
-
+// =========================================================================
+// RUTAS AUTENTICADAS - GRUPO PRINCIPAL
+// =========================================================================
 
 Route::middleware([
     'auth:sanctum',
@@ -49,44 +51,14 @@ Route::middleware([
     'verified',
 ])->group(function () {
 
-    Route::get('/roles', function () {
-        return Inertia::render('Roles/Index');
-    })->name('roles');
+    // Roles y Permisos
+    Route::get('/roles', fn() => Inertia::render('Roles/Index'))->name('roles');
+    Route::get('/permisos', fn() => Inertia::render('Permisos/Index'))->name('permisos');
+    Route::get('/usuario', fn() => Inertia::render('Usuarios/Index'))->name('usuario');
 
-    // Ruta para renderizar la vista de roles
-    Route::get('/permisos', function () {
-        return Inertia::render('Permisos/Index');
-    })->name('permisos');
-
-    // Ruta para renderizar la vista de categorias y subcategories
-    Route::get('/categorias', function () {
-        return inertia('Categorias/CategoriaManager');
-    })->name('categorias');
-
-    Route::get('/subcategorias', function () {
-        return inertia('Subcategorias/SubcategoriaManager');
-    })->name('subcategorias');
-
-
-
-    Route::get('/Registrar_video', function () {
-        return Inertia::render('Tutoriales/CreateTutorial');
-    })->name('CreateTutorial');
-
-    Route::get('/prueba', function () {
-        return Inertia::render('Tutoriales/Prueba');
-    })->name('prueba');
-
-    // Route::get('/tutoriales', function () {
-    //     return Inertia::render('Tutoriales/Index');
-    // })->name('tutoriales');
-
-
-    // Ruta para actualizar un tutorial con Inertia
+    // Tutoriales (vista alternativa)
+    Route::get('/Registrar_video', fn() => Inertia::render('Tutoriales/CreateTutorial'))->name('CreateTutorial');
     Route::put('/tutoriales/{tutorial}', [TutorialController::class, 'updateWeb'])->name('tutoriales.update');
-
-
-    // Ruta para editar un tutorial
     Route::get('/tutoriales/{tutorial}/edit', function (Tutorial $tutorial) {
         return Inertia::render('Tutoriales/Edit', [
             'tutorial' => $tutorial,
@@ -95,119 +67,45 @@ Route::middleware([
         ]);
     })->name('Editar');
 
+    // Listado de tutoriales (con permiso)
+    Route::get('/tutoriales', function () {
+        $user = Auth::user();
+        $rol = optional($user->role)->nombre;
+        if ($rol === 'Superadmin we collab' || $rol === 'Admin We collab') {
+            return Inertia::render('Tutoriales/Index');
+        }
+        abort(403, 'No tienes permisos para acceder a esta página.');
+    })->name('tutoriales');
 
-
-    // 🔥 NUEVA RUTA PARA REPRODUCTOR
-    // ✅ Ruta web para mostrar la vista del tutorial
-
-
-
-});
-
-
-
-
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->get('/tutoriales', function () {
-
-    $user = Auth::user();
-    $rol = optional($user->role)->nombre;
-
-    // Solo permitir acceso a Superadmin We collab y Admin We collab
-    if ($rol === 'Superadmin We collab' || $rol === 'Admin We collab') {
-        return Inertia::render('Tutoriales/Index');
-    }
-
-    // Si no tiene permisos, redirigir al dashboard o mostrar error 403
-    abort(403, 'No tienes permisos para acceder a esta página.');
-
-    // O también podrías redirigir:
-    // return redirect()->route('dashboard')->with('error', 'Acceso no autorizado');
-
-})->name('tutoriales');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Route::middleware(['auth'])->group(function () {
-
-    // 👁️ Ver tutorial individual (valida acceso antes de mostrar)
+    // Ver tutorial individual
     Route::get('/tutorial/{id}', function ($id, Request $request) {
-
         $user = $request->user();
         $tutorial = Tutorial::find($id);
 
-        // ❌ No existe
-        if (!$tutorial) {
-            abort(404, 'Tutorial no encontrado');
-        }
-
-        // ❌ No activo
-        if ($tutorial->estado !== 'activo') {
+        if (!$tutorial || $tutorial->estado !== 'activo') {
             abort(404, 'Tutorial no disponible');
         }
 
-        // 🔐 Validar acceso por rol/alcance
         $tieneAcceso = false;
 
-        // Contenido público
         if (empty($tutorial->alcance) || trim($tutorial->alcance) === '') {
             $tieneAcceso = true;
-        }
-        // Usuario con rol
-        elseif ($user && $user->role) {
+        } elseif ($user && $user->role) {
             $rolUsuario = is_string($user->role)
                 ? $user->role
                 : ($user->role->nombre ?? $user->role->name ?? '');
 
-            // Superadmin ve todo
             if (strtolower(trim($rolUsuario)) === 'superadmin we collab') {
                 $tieneAcceso = true;
-            }
-            // Match exacto
-            else {
+            } else {
                 $tieneAcceso = strtolower(trim($rolUsuario)) === strtolower(trim($tutorial->alcance));
             }
         }
 
-        // ❌ Sin acceso
         if (!$tieneAcceso) {
             return Inertia::render('Errors/403');
         }
 
-        // ✅ Renderizar vista
         return Inertia::render('Tutoriales/Show', [
             'tutorial' => $tutorial,
             'user' => $user ? [
@@ -218,135 +116,100 @@ Route::middleware(['auth'])->group(function () {
                     : ($user->role->nombre ?? $user->role->name ?? null),
             ] : null,
         ]);
-
     })->name('tutorial.show');
-
 });
 
-
-
-
-
-
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->group(function () {
-    Route::get('/usuario', function () {
-        return Inertia::render('Usuarios/Index');
-    })->name('usuario');
-});
-
-
-
-
-
-
-
-
-// Route::middleware(['auth', 'verified'])->group(function () {
-
-//     Route::prefix('recursos')->group(function () {
-
-//         Route::get('/videos', function () {
-//             return Inertia::render('Recursos/Index', [
-//                 'tipo' => 'video'
-//             ]);
-//         })->name('recursos.videos');
-
-//         Route::get('/manuales', function () {
-//             return Inertia::render('Recursos/Index', [
-//                 'tipo' => 'manual'
-//             ]);
-//         })->name('recursos.manuales');
-
-//         Route::get('/guias', function () {
-//             return Inertia::render('Recursos/Index', [
-//                 'tipo' => 'guia'
-//             ]);
-//         })->name('recursos.guias');
-
-//         Route::get('/posts', function () {
-//             return Inertia::render('Recursos/Index', [
-//                 'tipo' => 'post'
-//             ]);
-//         })->name('recursos.posts');
-
-//         Route::get('/tripticos', function () {
-//             return Inertia::render('Recursos/Index', [
-//                 'tipo' => 'triptico'
-//             ]);
-//         })->name('recursos.tripticos');
-
-//     });
-
-// });
-
-
-
-// Route::middleware(['auth', 'verified'])->prefix('recursos')->group(function () {
-
-//     // 🌐 Vista general (todos los recursos)
-//     Route::get('/', function () {
-//         return Inertia::render('Recursos/Index', [
-//             'tipo' => 'todos'  // Esto indica que no filtramos por tipo
-//         ]);
-//     })->name('recursos.index');
-
-//     // Listados por tipo
-//     Route::get('/videos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'video']))->name('recursos.videos');
-//     Route::get('/manuales', fn() => Inertia::render('Recursos/Index', ['tipo' => 'manual']))->name('recursos.manuales');
-//     Route::get('/guias', fn() => Inertia::render('Recursos/Index', ['tipo' => 'guia']))->name('recursos.guias');
-//     Route::get('/posts', fn() => Inertia::render('Recursos/Index', ['tipo' => 'post']))->name('recursos.posts');
-//     Route::get('/tripticos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'triptico']))->name('recursos.tripticos');
-
-//     // Crear recurso
-//     Route::get('/crear/{tipo}', fn($tipo) => Inertia::render('Recursos/Create', ['tipo' => $tipo]))->name('recursos.create');
-//     Route::post('/', [RecursosSLCController::class, 'store'])->name('recursos.store');
-// });
-
-
-
-
-
-
-
-
-
+// =========================================================================
+// RECURSOS - RUTAS PRINCIPALES (LIMPIAS Y ORGANIZADAS)
+// =========================================================================
 
 Route::middleware(['auth', 'verified'])->prefix('recursos')->group(function () {
 
-    // 🌐 Vista general (todos los recursos)
+    // -------------------------------------------------------------------------
+    // VISTAS PRINCIPALES (INDEX)
+    // -------------------------------------------------------------------------
     Route::get('/', [RecursosSLCController::class, 'index'])->name('recursos.index');
-
-    // Listados por tipo
     Route::get('/videos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'video']))->name('recursos.videos');
     Route::get('/manuales', fn() => Inertia::render('Recursos/Index', ['tipo' => 'manual']))->name('recursos.manuales');
     Route::get('/guias', fn() => Inertia::render('Recursos/Index', ['tipo' => 'guia']))->name('recursos.guias');
     Route::get('/posts', fn() => Inertia::render('Recursos/Index', ['tipo' => 'post']))->name('recursos.posts');
     Route::get('/tripticos', fn() => Inertia::render('Recursos/Index', ['tipo' => 'triptico']))->name('recursos.tripticos');
 
-    // ✅ RUTAS PARA VER RECURSOS INDIVIDUALES (URL AMIGABLES)
+    // ✅ Avisos Importantes (única ruta, sin duplicados)
+    Route::get('/avisos-importantes', fn() => Inertia::render('Recursos/Index', ['tipo' => 'avisos importantes']))->name('recursos.avisos');
+
+    // -------------------------------------------------------------------------
+    // VER RECURSOS INDIVIDUALES (SHOW)
+    // -------------------------------------------------------------------------
     Route::get('/videos/{id}', [RecursosSLCController::class, 'show'])->name('recursos.videos.show');
     Route::get('/manuales/{id}', [RecursosSLCController::class, 'show'])->name('recursos.manuales.show');
     Route::get('/guias/{id}', [RecursosSLCController::class, 'show'])->name('recursos.guias.show');
     Route::get('/posts/{id}', [RecursosSLCController::class, 'show'])->name('recursos.posts.show');
     Route::get('/tripticos/{id}', [RecursosSLCController::class, 'show'])->name('recursos.tripticos.show');
 
-    // 🔗 RUTA DE REDIRECCIÓN PARA COMPARTIR (NO EXPONE LA URL REAL)
+    // ✅ Ver aviso importante individual
+    Route::get('/avisos-importantes/{id}', [RecursosSLCController::class, 'show'])->name('recursos.avisos.show');
+
+    // -------------------------------------------------------------------------
+    // COMPARTIR RECURSO
+    // -------------------------------------------------------------------------
     Route::get('/compartir/{id}', function ($id) {
         return Inertia::render('Recursos/Redirect', ['id' => $id]);
     })->name('recursos.share');
 
-    // Crear recurso
+    // -------------------------------------------------------------------------
+    // CRUD - CREAR, EDITAR, ACTUALIZAR, ELIMINAR
+    // -------------------------------------------------------------------------
     Route::get('/crear/{tipo}', [RecursosSLCController::class, 'create'])->name('recursos.create');
     Route::post('/', [RecursosSLCController::class, 'store'])->name('recursos.store');
-
-    // Editar recurso
     Route::get('/{id}/edit', [RecursosSLCController::class, 'edit'])->name('recursos.edit');
     Route::put('/{id}', [RecursosSLCController::class, 'update'])->name('recursos.update');
-
-    // Eliminar recurso
     Route::delete('/{id}', [RecursosSLCController::class, 'destroy'])->name('recursos.destroy');
 });
+
+// =========================================================================
+// CATEGORIAS
+// =========================================================================
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('categorias')
+    ->group(function () {
+        Route::get('/', fn() => Inertia::render('Categorias/Index'))->name('categorias.index');
+        Route::get('/create', fn() => Inertia::render('Categorias/Create'))->name('categorias.create');
+        Route::get('/{id}/edit', fn($id) => Inertia::render('Categorias/Edit', ['id' => $id]))->name('categorias.edit');
+        Route::get('/export', [CategoriaController::class, 'export'])->name('categorias.export');
+    });
+
+// =========================================================================
+// SUBCATEGORIAS
+// =========================================================================
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('subcategorias')
+    ->group(function () {
+        Route::get('/', fn() => Inertia::render('Subcategorias/Index'))->name('subcategorias.index');
+        Route::get('/create', fn() => Inertia::render('Subcategorias/Create', [
+            'categoriaId' => request()->query('categoria_id')
+        ]))->name('subcategorias.create');
+        Route::get('/{id}', fn($id) => Inertia::render('Subcategorias/Show', ['id' => $id]))->name('subcategorias.show');
+        Route::get('/{id}/edit', fn($id) => Inertia::render('Subcategorias/Edit', ['id' => $id]))->name('subcategorias.edit');
+        Route::get('/export', [SubcategoriaController::class, 'export'])->name('subcategorias.export');
+    });
+
+
+
+// Rutas protegidas por autenticación
+Route::middleware(['auth', 'verified'])
+    ->prefix('usuarios')
+    ->group(function () {
+        // Vistas principales (solo renderizado)
+        Route::get('/', fn() => Inertia::render('Usuarios/Index'))->name('usuarios.index');
+        Route::get('/create', fn() => Inertia::render('Usuarios/Create'))->name('usuarios.create');
+        Route::get('/{id}', fn($id) => Inertia::render('Usuarios/Show', ['id' => $id]))->name('usuarios.show');
+        Route::get('/{id}/edit', fn($id) => Inertia::render('Usuarios/Edit', ['id' => $id]))->name('usuarios.edit');
+
+        // Si necesitas exportar vista
+        Route::get('/export/view', fn() => Inertia::render('Usuarios/Export'))->name('usuarios.export.view');
+
+        // Nota: La lógica de exportar está en API, solo la vista aquí
+    });

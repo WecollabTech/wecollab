@@ -1,226 +1,162 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { Link, router, usePage } from "@inertiajs/vue3";
 import Dropdown from "@/Components/Dropdown.vue";
 import DropdownLink from "@/Components/DropdownLink.vue";
-import NavLink from "@/Components/NavLink.vue";
 
 const page = usePage();
-const props = defineProps({ showingNavigationDropdown: Boolean });
-const emit = defineEmits(["update:showingNavigationDropdown"]);
-
-// ─────────────────────────────────────────────────────
-// 🔐 IDs y Grupos de Roles (Optimizado - sin objeto ROLES redundante)
-// ─────────────────────────────────────────────────────
-const ROLE_IDS = {
-    SUPERADMIN_WE_COLLAB: 1,
-    ADMIN_WE_COLLAB: 2,
-    SUSCRIPTOR_SLC: 3,
-    CLIENTE_ADMIN: 4,
-    CLIENTE_PREMIUM: 5,
-    USUARIO_PUBLICO: 6,
-    PROSPECTO: 7,
-    USUARIO_ESTANDAR: 8,
-};
-
-const ROLE_GROUPS = {
-    ADMIN_WE_COLLAB_TOTAL: [ROLE_IDS.SUPERADMIN_WE_COLLAB],
-    ADMIN_WE_COLLAB_OPERATIVO: [
-        ROLE_IDS.SUPERADMIN_WE_COLLAB,
-        ROLE_IDS.ADMIN_WE_COLLAB,
-    ],
-    GESTORES: [
-        ROLE_IDS.SUPERADMIN_WE_COLLAB,
-        ROLE_IDS.ADMIN_WE_COLLAB,
-        ROLE_IDS.CLIENTE_ADMIN,
-    ],
-    CLIENTES_CON_ACCESO: [
-        ROLE_IDS.SUSCRIPTOR_SLC,
-        ROLE_IDS.CLIENTE_ADMIN,
-        ROLE_IDS.CLIENTE_PREMIUM,
-    ],
-    ACCESO_CATALOGO: [
-        ROLE_IDS.USUARIO_PUBLICO,
-        ROLE_IDS.PROSPECTO,
-        ROLE_IDS.USUARIO_ESTANDAR,
-    ],
-    TODOS_ACTIVOS: Object.values(ROLE_IDS),
-};
-
-// ─────────────────────────────────────────────────────
-// 🔐 USUARIO Y ROL (desde Inertia page.props.auth)
-// ─────────────────────────────────────────────────────
-const currentUser = computed(() => page.props.auth?.user);
-const userRole = computed(() => currentUser.value?.role);
-const userRoleId = computed(() => userRole.value?.id);
-const userRoleName = computed(() => userRole.value?.nombre);
-const isRoleActive = computed(() => userRole.value?.estado === "activo");
-
-// ✅ VERIFICAR si el usuario es Superadmin o Admin We collab (IDs 1 y 2)
-const hasFullAccess = computed(() => {
-    return (
-        userRoleId.value === ROLE_IDS.SUPERADMIN_WE_COLLAB ||
-        userRoleId.value === ROLE_IDS.ADMIN_WE_COLLAB
-    );
+const props = defineProps({
+    showingNavigationDropdown: Boolean,
 });
 
-// ─────────────────────────────────────────────────────
-// 🔒 VALIDACIÓN DE ACCESO (FAIL-CLOSED - Seguro por defecto)
-// ─────────────────────────────────────────────────────
-const canAccess = (allowedRoles) => {
-    if (!userRoleId.value || !isRoleActive.value) return false;
-    if (!allowedRoles || allowedRoles.length === 0) return false;
-    return allowedRoles.includes(userRoleId.value);
+const emit = defineEmits(["update:showingNavigationDropdown"]);
+
+// ================================
+// 🔐 VERIFICACIÓN DE ROLES PERMITIDOS (MEJORADA)
+// ================================
+// Roles permitidos para ver el menú completo
+const ALLOWED_ROLE_IDS = [1, 2];
+const ALLOWED_ROLE_NAMES = ["Superadmin we collab", "Admin we collab"];
+
+// Función para obtener el rol del usuario de manera segura
+const getUserRole = () => {
+    // Intentar diferentes formas de acceder al rol
+    const user = page.props.auth?.user;
+
+    if (!user) {
+        console.warn("No se encontró usuario en la sesión");
+        return null;
+    }
+
+    // Debug: Mostrar estructura completa del usuario
+    console.log("Estructura completa del usuario:", user);
+    console.log("Roles disponibles:", user.rol);
+
+    // Caso 1: El rol está directamente en user.rol
+    if (user.rol) {
+        console.log("Rol encontrado en user.rol:", user.rol);
+        return user.rol;
+    }
+
+    // Caso 2: El rol está en user.role
+    if (user.role) {
+        console.log("Rol encontrado en user.role:", user.role);
+        return user.role;
+    }
+
+    // Caso 3: El rol está en user.roles (array)
+    if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
+        console.log("Roles encontrados en user.roles:", user.roles);
+        return user.roles[0]; // Tomar el primer rol
+    }
+
+    // Caso 4: El rol está en user.data.rol (para estructuras anidadas)
+    if (user.data && user.data.rol) {
+        console.log("Rol encontrado en user.data.rol:", user.data.rol);
+        return user.data.rol;
+    }
+
+    console.warn(
+        "No se pudo encontrar el rol del usuario en ninguna ubicación esperada",
+    );
+    return null;
 };
 
-// Helper: Obtener clase CSS para badge de rol según tipo
-const getRoleBadgeClass = (roleId) => {
-    if (!isRoleActive.value)
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+// Verificar si el usuario tiene acceso al menú completo
+const hasFullMenuAccess = computed(() => {
+    const userRole = getUserRole();
 
-    const classes = {
-        [ROLE_IDS.SUPERADMIN_WE_COLLAB]:
-            "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-        [ROLE_IDS.ADMIN_WE_COLLAB]:
-            "bg-blue-500/20 text-blue-300 border-blue-500/30",
-        [ROLE_IDS.CLIENTE_ADMIN]:
-            "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-        [ROLE_IDS.SUSCRIPTOR_SLC]:
-            "bg-purple-500/20 text-purple-300 border-purple-500/30",
-        [ROLE_IDS.CLIENTE_PREMIUM]:
-            "bg-violet-500/20 text-violet-300 border-violet-500/30",
-        [ROLE_IDS.USUARIO_PUBLICO]:
-            "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-        [ROLE_IDS.PROSPECTO]: "bg-gray-500/20 text-gray-300 border-gray-500/30",
-        [ROLE_IDS.USUARIO_ESTANDAR]:
-            "bg-slate-500/20 text-slate-300 border-slate-500/30",
-    };
-    return classes[roleId] || "bg-gray-500/20 text-gray-300 border-gray-500/30";
-};
+    if (!userRole) {
+        console.log("No hay rol de usuario, acceso denegado");
+        return false;
+    }
 
-// ─────────────────────────────────────────────────────
-// 📋 CONFIGURACIÓN DEL MENÚ (Con roles reales de tu BD)
-// ─────────────────────────────────────────────────────
-const MENU_CONFIG = {
-    tutorial: {
-        visible: true,
+    console.log("Verificando acceso para rol:", userRole);
+
+    // Verificar por ID
+    if (userRole.id && ALLOWED_ROLE_IDS.includes(userRole.id)) {
+        console.log(`Acceso concedido por ID: ${userRole.id}`);
+        return true;
+    }
+
+    // Verificar por nombre
+    if (userRole.nombre && ALLOWED_ROLE_NAMES.includes(userRole.nombre)) {
+        console.log(`Acceso concedido por nombre: ${userRole.nombre}`);
+        return true;
+    }
+
+    // Si el rol viene como string directamente
+    if (typeof userRole === "string" && ALLOWED_ROLE_NAMES.includes(userRole)) {
+        console.log(`Acceso concedido por nombre directo: ${userRole}`);
+        return true;
+    }
+
+    // Si el rol viene como número ID directamente
+    if (typeof userRole === "number" && ALLOWED_ROLE_IDS.includes(userRole)) {
+        console.log(`Acceso concedido por ID directo: ${userRole}`);
+        return true;
+    }
+
+    console.log(`Acceso denegado para rol:`, userRole);
+    return false;
+});
+
+// ================================
+// 📊 CONFIGURACIÓN DEL MENÚ MEJORADA
+// ================================
+const menuSections = {
+    dashboard: {
+        title: "Inicio",
+        icon: "fa-home",
+        isSingle: true,
+        href: "/dashboard",
+        description: "Panel principal",
+    },
+
+    biblioteca: {
+        title: "Biblioteca",
+        icon: "fa-book-open",
         items: [
             {
                 key: "categorias",
                 label: "Categorías",
-                icon: "fa-layer-group",
+                icon: "fa-tags",
                 href: "/categorias",
-                roles: ROLE_GROUPS.GESTORES,
-                description: "Gestión de categorías de contenido",
+                description: "Administrar categorías de contenido",
             },
             {
                 key: "subcategorias",
                 label: "Subcategorías",
                 icon: "fa-sitemap",
                 href: "/subcategorias",
-                roles: ROLE_GROUPS.GESTORES,
+                description: "Administrar subcategorías",
             },
             {
-                key: "tutoriales",
-                label: "Videos Capacitación",
+                key: "lista",
+                label: "Lista de Recursos",
                 icon: "fa-video",
-                href: "/tutoriales",
-                roles: [
-                    ROLE_IDS.SUPERADMIN_WE_COLLAB,
-                    ROLE_IDS.ADMIN_WE_COLLAB,
-                ],
+                href: "/recursos",
+                description: "Biblioteca de videos",
             },
-            {
-                key: "comentarios",
-                label: "Comentarios",
-                icon: "fa-comments",
-                href: "/comentarios",
-                roles: ROLE_GROUPS.GESTORES,
-            },
-        ],
-    },
-    usuarios: {
-        visible: true,
-        items: [
-            {
-                key: "crear_usuario",
-                label: "Crear Usuario",
-                icon: "fa-user-plus",
-                href: "/usuarios/create",
-                roles: ROLE_GROUPS.GESTORES,
-                tooltip: "Solo usuarios de tu empresa",
-                restrictToCompany: true,
-            },
-            {
-                key: "editar_usuario",
-                label: "Editar Usuario",
-                icon: "fa-user-edit",
-                href: "/usuarios",
-                roles: ROLE_GROUPS.GESTORES,
-            },
-            {
-                key: "eliminar_usuario",
-                label: "Eliminar Usuario",
-                icon: "fa-user-times",
-                href: "/usuarios",
-                roles: ROLE_GROUPS.GESTORES,
-                requiresConfirm: true,
-            },
-        ],
-    },
-    configuracion: {
-        visible: true,
-        items: [
-            {
-                key: "permisos",
-                label: "Permisos",
-                icon: "fa-key",
-                href: "/permisos",
-                roles: ROLE_GROUPS.ADMIN_WE_COLLAB_TOTAL,
-                badge: "SuperAdmin",
-            },
-            {
-                key: "roles",
-                label: "Roles",
-                icon: "fa-user-shield",
-                href: "/roles",
-                roles: ROLE_GROUPS.ADMIN_WE_COLLAB_TOTAL,
-                badge: "SuperAdmin",
-            },
-            {
-                key: "reportes",
-                label: "Reportes",
-                icon: "fa-chart-bar",
-                href: "/reportes",
-                roles: ROLE_GROUPS.GESTORES,
-            },
-        ],
-    },
-    recursos: {
-        visible: true,
-        items: [
             {
                 key: "videos",
                 label: "Videos",
-                icon: "fa-video",
+                icon: "fa-book",
                 href: "/recursos/videos",
-                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
-                description: "Biblioteca de videos de capacitación",
+                description: "Cursos de Capacitaciones",
             },
             {
                 key: "manuales",
                 label: "Manuales",
                 icon: "fa-book",
                 href: "/recursos/manuales",
-                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
-                description: "Documentación y manuales de uso",
+                description: "Manuales y documentación",
             },
             {
                 key: "guias",
                 label: "Guías",
                 icon: "fa-compass",
                 href: "/recursos/guias",
-                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
                 description: "Guías paso a paso",
             },
             {
@@ -228,103 +164,200 @@ const MENU_CONFIG = {
                 label: "Posts",
                 icon: "fa-newspaper",
                 href: "/recursos/posts",
-                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
-                description: "Artículos y novedades",
+                description: "Materiales de Post",
             },
             {
-                key: "tripticos",
-                label: "Trípticos",
-                icon: "fa-file-pdf",
+                key: "triptico",
+                label: "Infografia",
+                icon: "fa-newspaper",
                 href: "/recursos/tripticos",
-                roles: ROLE_GROUPS.CLIENTES_CON_ACCESO,
-                description: "Material descargable e informativo",
+                description: "Infografia",
+            },
+            {
+                key: "avisos",
+                label: "Avisos Importante",
+                icon: "fa-bell",
+                href: "/recursos/avisos-importantes",
+                description: "Avisos del Sistema",
+            },
+        ],
+    },
+
+    comunidad: {
+        title: "Comunidad",
+        icon: "fa-users",
+        items: [
+            {
+                key: "crear_usuario",
+                label: "Nuevo Usuario",
+                icon: "fa-user-plus",
+                href: "/usuarios/create",
+                badge: "Nuevo",
+            },
+            {
+                key: "listar_usuarios",
+                label: "Todos los Usuarios",
+                icon: "fa-users",
+                href: "/usuarios",
+                description: "Lista completa de usuarios",
+            },
+            {
+                key: "comentarios",
+                label: "Comentarios",
+                icon: "fa-comments",
+                href: "/comentarios",
+                description: "Moderar comentarios",
+                badge: "Pendientes",
+            },
+        ],
+    },
+
+    sistema: {
+        title: "Sistema",
+        icon: "fa-cogs",
+        items: [
+            {
+                key: "permisos",
+                label: "Permisos",
+                icon: "fa-key",
+                href: "/permisos",
+                badge: "Admin",
+                description: "Permisos globales",
+            },
+            {
+                key: "roles",
+                label: "Roles",
+                icon: "fa-user-shield",
+                href: "/roles",
+                badge: "Admin",
+                description: "Administrar roles",
             },
         ],
     },
 };
 
-// ─────────────────────────────────────────────────────
-// 🔍 FILTRADO DINÁMICO DE ITEMS (SOLO para Superadmin/Admin)
-// ─────────────────────────────────────────────────────
-const getVisibleItems = (sectionKey) => {
-    const section = MENU_CONFIG[sectionKey];
-    if (!section?.items || !isRoleActive.value) return [];
+// ================================
+// 🔍 FUNCIÓN PARA DETECTAR SECCIÓN ACTIVA
+// ================================
+const getCurrentSection = () => {
+    const currentUrl = page.url;
 
-    // Si NO tiene acceso total (no es Superadmin/Admin), NO mostrar NADA
-    if (!hasFullAccess.value) return [];
+    // Verificar si es dashboard
+    if (currentUrl === "/dashboard" || currentUrl === "/") {
+        return "dashboard";
+    }
 
-    // Si tiene acceso total, mostrar según roles definidos
-    return section.items.filter((item) => canAccess(item.roles));
+    // Buscar en qué sección está la URL actual
+    for (const [sectionKey, section] of Object.entries(menuSections)) {
+        if (section.isSingle) continue;
+
+        for (const item of section.items) {
+            if (
+                currentUrl === item.href ||
+                currentUrl.startsWith(item.href + "/")
+            ) {
+                return sectionKey;
+            }
+        }
+    }
+
+    return null;
 };
 
-const visibleTutorialItems = computed(() => getVisibleItems("tutorial"));
-const visibleUsuariosItems = computed(() => getVisibleItems("usuarios"));
-const visibleConfigItems = computed(() => getVisibleItems("configuracion"));
-const visibleRecursosItems = computed(() => getVisibleItems("recursos"));
-
-// ✅ Determinar qué secciones mostrar (SOLO para Superadmin/Admin)
-const showTutorialSection = computed(() => {
-    if (!isRoleActive.value) return false;
-    // Solo mostrar si tiene acceso total Y hay items visibles
-    return hasFullAccess.value && visibleTutorialItems.value.length > 0;
-});
-
-const showUsuariosSection = computed(() => {
-    if (!isRoleActive.value) return false;
-    return hasFullAccess.value && visibleUsuariosItems.value.length > 0;
-});
-
-const showConfigSection = computed(() => {
-    if (!isRoleActive.value) return false;
-    return hasFullAccess.value && visibleConfigItems.value.length > 0;
-});
-
-const showRecursosSection = computed(() => {
-    if (!isRoleActive.value) return false;
-    return hasFullAccess.value && visibleRecursosItems.value.length > 0;
-});
-
-const isSuperAdminWeCollab = computed(
-    () => userRoleId.value === ROLE_IDS.SUPERADMIN_WE_COLLAB,
-);
-const isClienteAdmin = computed(
-    () => userRoleId.value === ROLE_IDS.CLIENTE_ADMIN,
-);
-
-// ─────────────────────────────────────────────────────
-// 🔄 LÓGICA DE SUBMENÚS Y EVENTOS
-// ─────────────────────────────────────────────────────
+// ================================
+// 🔽 ESTADO DE SUBMENÚS
+// ================================
 const isSubmenuOpen = ref({
-    tutorial: false,
-    usuarios: false,
-    configuracion: false,
-    recursos: false,
+    biblioteca: false,
+    comunidad: false,
+    sistema: false,
 });
+
+// Inicializar submenús basado en la URL actual
+const initializeOpenSubmenus = () => {
+    if (!hasFullMenuAccess.value) return;
+    const currentSection = getCurrentSection();
+    if (currentSection && currentSection !== "dashboard") {
+        isSubmenuOpen.value[currentSection] = true;
+    }
+};
+
+// Watch para cambios de ruta
+watch(
+    () => page.url,
+    () => {
+        if (!hasFullMenuAccess.value) return;
+
+        const currentSection = getCurrentSection();
+
+        Object.keys(isSubmenuOpen.value).forEach((key) => {
+            isSubmenuOpen.value[key] = false;
+        });
+
+        if (currentSection && currentSection !== "dashboard") {
+            isSubmenuOpen.value[currentSection] = true;
+        }
+    },
+);
+
+// ================================
+// 🎯 FUNCIONES DE VERIFICACIÓN
+// ================================
+const isItemActive = (href) => {
+    const currentUrl = page.url;
+    return currentUrl === href || currentUrl.startsWith(href + "/");
+};
+
+const isSectionActive = (sectionKey) => {
+    if (sectionKey === "dashboard") {
+        return page.url === "/dashboard" || page.url === "/";
+    }
+
+    const section = menuSections[sectionKey];
+    if (!section || !section.items) return false;
+
+    return section.items.some((item) => isItemActive(item.href));
+};
 
 const toggleSubmenu = (menu) => {
-    Object.keys(isSubmenuOpen.value).forEach((key) => {
-        if (key !== menu) isSubmenuOpen.value[key] = false;
-    });
-    isSubmenuOpen.value[menu] = !isSubmenuOpen.value[menu];
+    if (!hasFullMenuAccess.value) return;
+
+    if (isSubmenuOpen.value[menu]) {
+        isSubmenuOpen.value[menu] = false;
+    } else {
+        Object.keys(isSubmenuOpen.value).forEach((key) => {
+            isSubmenuOpen.value[key] = false;
+        });
+        isSubmenuOpen.value[menu] = true;
+    }
 };
 
 const logout = () => router.post(route("logout"));
 
+const closeSidebar = () => {
+    emit("update:showingNavigationDropdown", false);
+};
+
 const handleResize = () => {
-    if (window.innerWidth >= 1024) {
-        emit("update:showingNavigationDropdown", false);
-    }
+    if (window.innerWidth >= 1024) closeSidebar();
 };
 
 const handleKeydown = (e) => {
     if (e.key === "Escape" && props.showingNavigationDropdown) {
-        emit("update:showingNavigationDropdown", false);
+        closeSidebar();
     }
 };
 
 onMounted(() => {
+    initializeOpenSubmenus();
     window.addEventListener("resize", handleResize);
     window.addEventListener("keydown", handleKeydown);
+
+    // Debug inicial
+    console.log("=== DEBUG INICIAL SIDEBAR ===");
+    console.log("Usuario completo:", page.props.auth?.user);
+    console.log("¿Tiene acceso al menú?", hasFullMenuAccess.value);
+    console.log("==============================");
 });
 
 onUnmounted(() => {
@@ -339,328 +372,297 @@ onUnmounted(() => {
             'translate-x-0': showingNavigationDropdown,
             '-translate-x-full': !showingNavigationDropdown,
         }"
-        class="fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-[#1a3080] to-[#223e9c] shadow-2xl transform transition-all duration-300 ease-out lg:translate-x-0 lg:fixed lg:inset-y-0"
+        class="fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-[#023E8A] to-[#0e2d48] shadow-2xl transform transition-all duration-300 ease-out lg:translate-x-0 flex flex-col font-sans"
     >
         <!-- Header con Logo -->
-        <div
-            class="flex items-center justify-between h-20 px-6 border-b border-white/10 bg-white/5 backdrop-blur-sm"
-        >
-            <Link
-                :href="route('dashboard')"
-                class="flex items-center gap-3 group"
+        <div class="flex-shrink-0 relative">
+            <div
+                class="absolute inset-0 bg-gradient-to-r from-cyan-400/5 to-indigo-400/5"
+            ></div>
+            <div
+                class="relative flex items-center justify-between h-20 px-6 border-b border-white/10 bg-white/[0.03] backdrop-blur-sm"
             >
-                <div class="relative">
-                    <div
-                        class="absolute inset-0 bg-cyan-400/30 rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                    ></div>
-                    <div
-                        class="relative w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-black/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300"
-                    >
-                        <img
-                            src="/img/Logo.png"
-                            alt="SLC"
-                            class="h-8 w-auto object-contain"
-                        />
+                <Link
+                    :href="route('dashboard')"
+                    class="flex items-center gap-3 group"
+                >
+                    <div class="relative">
+                        <div
+                            class="absolute inset-0 bg-cyan-400/20 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                        ></div>
+                        <div
+                            class="relative w-11 h-11 bg-gradient-to-br from-white to-slate-100 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-all duration-300"
+                        >
+                            <img
+                                src="/img/Logo.png"
+                                alt="SLC"
+                                class="h-8 w-auto object-contain"
+                            />
+                        </div>
                     </div>
-                </div>
-                <div
-                    class="group-hover:translate-x-1 transition-transform duration-300"
+                    <div>
+                        <span class="text-2xl font-bold text-white">SLC</span>
+                        <p
+                            class="text-xs text-cyan-300/90 -mt-0.5 font-medium tracking-wide"
+                        >
+                            we collab
+                        </p>
+                    </div>
+                </Link>
+
+                <button
+                    class="lg:hidden p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover:rotate-90"
+                    @click="closeSidebar"
+                    type="button"
+                    aria-label="Cerrar menú"
                 >
-                    <span class="text-2xl font-bold text-white tracking-tight"
-                        >SLC</span
+                    <svg
+                        class="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                     >
-                    <p
-                        class="text-xs text-cyan-300 -mt-0.5 font-medium tracking-wide"
-                    >
-                        we collab
-                    </p>
-                </div>
-            </Link>
-            <button
-                class="lg:hidden p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover:rotate-90"
-                @click="emit('update:showingNavigationDropdown', false)"
-                type="button"
-                aria-label="Cerrar menú"
-            >
-                <svg
-                    class="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
-                    />
-                </svg>
-            </button>
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"
+                        />
+                    </svg>
+                </button>
+            </div>
         </div>
 
-        <nav
-            class="flex-1 px-4 py-6 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)]"
-        >
-            <!-- Dashboard (Visible para todos los roles activos) -->
-            <div class="mb-6" v-if="isRoleActive">
-                <NavLink
-                    :href="route('dashboard')"
-                    :active="route().current('dashboard')"
-                    class="group relative flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 text-white hover:bg-white/10"
+        <!-- Mostrar según el acceso -->
+        <template v-if="hasFullMenuAccess">
+            <nav class="flex-1 px-3 py-6 overflow-y-auto min-h-0">
+                <!-- Dashboard - Item destacado -->
+                <Link
+                    :href="menuSections.dashboard.href"
+                    class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 mb-6 relative overflow-hidden group text-white"
                     :class="{
-                        'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 shadow-lg shadow-cyan-500/10':
-                            route().current('dashboard'),
+                        'bg-gradient-to-r from-cyan-500/30 to-indigo-500/30 border border-cyan-400/40 shadow-lg shadow-cyan-500/20':
+                            isSectionActive('dashboard'),
+                        'hover:bg-white/5': !isSectionActive('dashboard'),
                     }"
                 >
                     <div
-                        v-if="route().current('dashboard')"
-                        class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-cyan-400 to-blue-400 rounded-r-full"
+                        v-if="isSectionActive('dashboard')"
+                        class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-cyan-400 to-indigo-400 rounded-r-full"
                     ></div>
                     <div class="relative">
                         <i
-                            class="fas fa-home-alt w-5 h-5 transition-all duration-300"
-                            :class="
-                                route().current('dashboard')
-                                    ? 'text-cyan-400 scale-110'
-                                    : 'text-white/70 group-hover:text-white group-hover:scale-110'
-                            "
+                            :class="[
+                                `fas ${menuSections.dashboard.icon} w-5 h-5 transition-all duration-300`,
+                                isSectionActive('dashboard')
+                                    ? 'text-white scale-110'
+                                    : 'text-white/80 group-hover:scale-110',
+                            ]"
                         ></i>
                     </div>
-                    <span class="flex-1">Inicio</span>
-                    <span v-if="route().current('dashboard')" class="relative">
+                    <span class="flex-1 text-white">{{
+                        menuSections.dashboard.title
+                    }}</span>
+                    <span v-if="isSectionActive('dashboard')" class="relative">
                         <span
-                            class="absolute inset-0 bg-cyan-400 rounded-full animate-ping opacity-75"
+                            class="absolute inset-0 bg-cyan-400/40 rounded-full animate-ping opacity-60"
                         ></span>
                         <span
-                            class="relative w-2 h-2 bg-cyan-400 rounded-full"
+                            class="relative w-2 h-2 bg-cyan-300 rounded-full"
                         ></span>
                     </span>
-                </NavLink>
-            </div>
+                </Link>
 
-            <!-- ⚠️ MENSAJE: Rol inactivo -->
-            <div v-if="!isRoleActive" class="px-4 py-6">
-                <div
-                    class="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center"
-                >
-                    <i
-                        class="fas fa-exclamation-triangle text-amber-400 text-xl mb-2 block"
-                    ></i>
-                    <p class="text-sm font-medium text-white/90">
-                        Rol inactivo
-                    </p>
-                    <p class="text-xs text-white/60 mt-1">
-                        Tu acceso está suspendido. Contacta al administrador.
-                    </p>
-                </div>
-            </div>
-
-            <!-- 🔒 MENSAJE: Usuario sin permisos (rol activo pero no es Superadmin/Admin) -->
-            <div v-else-if="!hasFullAccess" class="px-4 py-6">
-                <div
-                    class="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl text-center"
-                >
-                    <i class="fas fa-lock text-blue-400 text-xl mb-2 block"></i>
-                    <p class="text-sm font-medium text-white/90">
-                        Acceso Restringido
-                    </p>
-                    <p class="text-xs text-white/60 mt-1">
-                        Tu rol "{{ userRoleName }}" no tiene permisos para
-                        acceder a los menús.
-                    </p>
-                </div>
-            </div>
-
-            <!-- 📚 Sección: Tutorial (SOLO para Superadmin/Admin) -->
-            <div v-if="showTutorialSection" class="mb-2">
-                <button
-                    @click="toggleSubmenu('tutorial')"
-                    class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 group"
-                    type="button"
-                    :aria-expanded="isSubmenuOpen.tutorial"
-                >
-                    <div class="flex items-center gap-3">
-                        <i
-                            class="fas fa-columns w-5 h-5 text-white/60 group-hover:text-cyan-400 transition-colors duration-300"
-                        ></i>
-                        <span>Tutorial</span>
+                <!-- Separador -->
+                <div class="relative my-4">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-white/10"></div>
                     </div>
-                    <i
-                        class="fas fa-chevron-down w-4 h-4 text-white/40 transition-all duration-300 group-hover:text-white/70"
-                        :class="{ 'rotate-180': isSubmenuOpen.tutorial }"
-                    ></i>
-                </button>
-                <div
-                    v-show="isSubmenuOpen.tutorial"
-                    class="mt-1 ml-4 pl-4 border-l-2 border-white/10 space-y-1 overflow-hidden transition-all duration-300"
-                >
-                    <NavLink
-                        v-for="item in visibleTutorialItems"
-                        :key="item.key"
-                        :href="item.href"
-                        class="group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1 transition-all duration-200"
-                        :title="item.description"
-                    >
-                        <i
-                            :class="`fas ${item.icon} w-4 h-4 text-white/50 group-hover:text-cyan-400 transition-colors`"
-                        ></i>
-                        <span>{{ item.label }}</span>
-                    </NavLink>
-                </div>
-            </div>
-
-            <!-- 👥 Sección: Usuarios (SOLO para Superadmin/Admin) -->
-            <div v-if="showUsuariosSection" class="mb-2">
-                <button
-                    @click="toggleSubmenu('usuarios')"
-                    class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 group"
-                    type="button"
-                    :aria-expanded="isSubmenuOpen.usuarios"
-                >
-                    <div class="flex items-center gap-3">
-                        <i
-                            class="fas fa-users w-5 h-5 text-white/60 group-hover:text-cyan-400 transition-colors duration-300"
-                        ></i>
-                        <span>Usuarios</span>
+                    <div class="relative flex justify-center">
                         <span
-                            v-if="isClienteAdmin"
-                            class="ml-2 px-2 py-0.5 text-[10px] font-medium bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/30"
+                            class="px-3 text-[10px] font-medium uppercase tracking-wider text-white/60 bg-transparent"
+                            >Menú Principal</span
                         >
-                            Tu empresa
-                        </span>
                     </div>
-                    <i
-                        class="fas fa-chevron-down w-4 h-4 text-white/40 transition-all duration-300 group-hover:text-white/70"
-                        :class="{ 'rotate-180': isSubmenuOpen.usuarios }"
-                    ></i>
-                </button>
-                <div
-                    v-show="isSubmenuOpen.usuarios"
-                    class="mt-1 ml-4 pl-4 border-l-2 border-white/10 space-y-1 overflow-hidden transition-all duration-300"
-                >
-                    <NavLink
-                        v-for="item in visibleUsuariosItems"
-                        :key="item.key"
-                        :href="item.href"
-                        class="group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1 transition-all duration-200"
-                    >
-                        <i
-                            :class="`fas ${item.icon} w-4 h-4 text-white/50 group-hover:text-cyan-400 transition-colors`"
-                        ></i>
-                        <span class="flex-1">{{ item.label }}</span>
-                        <i
-                            v-if="item.requiresConfirm"
-                            class="fas fa-exclamation-triangle w-3 h-3 text-amber-400"
-                            :title="item.tooltip || 'Requiere confirmación'"
-                        ></i>
-                    </NavLink>
                 </div>
-            </div>
 
-            <!-- ⚙️ Sección: Configuración (SOLO para Superadmin/Admin) -->
-            <div v-if="showConfigSection" class="mb-2">
-                <button
-                    @click="toggleSubmenu('configuracion')"
-                    class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 group"
-                    type="button"
-                    :aria-expanded="isSubmenuOpen.configuracion"
-                >
-                    <div class="flex items-center gap-3">
-                        <i
-                            class="fas fa-cog w-5 h-5 text-white/60 group-hover:text-cyan-400 transition-colors duration-300"
-                        ></i>
-                        <span>Configuración</span>
+                <!-- Secciones del menú -->
+                <div class="space-y-1">
+                    <div v-for="(section, key) in menuSections" :key="key">
+                        <template v-if="key !== 'dashboard'">
+                            <button
+                                @click="toggleSubmenu(key)"
+                                class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group text-white"
+                                :class="{
+                                    'bg-gradient-to-r from-cyan-500/15 to-indigo-500/15 border-l-2 border-cyan-400/50':
+                                        isSubmenuOpen[key] ||
+                                        isSectionActive(key),
+                                    'hover:bg-white/5': !(
+                                        isSubmenuOpen[key] ||
+                                        isSectionActive(key)
+                                    ),
+                                }"
+                                type="button"
+                                :aria-expanded="isSubmenuOpen[key]"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300"
+                                        :class="{
+                                            'bg-cyan-500/25':
+                                                isSubmenuOpen[key] ||
+                                                isSectionActive(key),
+                                            'bg-white/5 group-hover:bg-white/10':
+                                                !(
+                                                    isSubmenuOpen[key] ||
+                                                    isSectionActive(key)
+                                                ),
+                                        }"
+                                    >
+                                        <i
+                                            :class="[
+                                                `fas ${section.icon} w-4 h-4 transition-all duration-300`,
+                                                isSectionActive(key)
+                                                    ? 'text-white scale-110'
+                                                    : 'text-white/80',
+                                            ]"
+                                        ></i>
+                                    </div>
+                                    <span
+                                        class="font-medium text-white"
+                                        :class="{
+                                            'text-cyan-200':
+                                                isSectionActive(key),
+                                        }"
+                                    >
+                                        {{ section.title }}
+                                    </span>
+                                    <span
+                                        v-if="section.badge"
+                                        class="ml-2 px-1.5 py-0.5 text-[9px] font-bold bg-cyan-500/30 text-white rounded-full"
+                                    >
+                                        {{ section.badge }}
+                                    </span>
+                                </div>
+                                <div
+                                    class="w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-300"
+                                    :class="{
+                                        'bg-cyan-500/25': isSubmenuOpen[key],
+                                        'group-hover:bg-white/5':
+                                            !isSubmenuOpen[key],
+                                    }"
+                                >
+                                    <i
+                                        class="fas fa-chevron-down w-3 h-3 transition-all duration-300 text-white"
+                                        :class="{
+                                            'rotate-180': isSubmenuOpen[key],
+                                        }"
+                                    ></i>
+                                </div>
+                            </button>
+
+                            <div v-show="isSubmenuOpen[key]" class="mt-2 mb-1">
+                                <div class="relative">
+                                    <div
+                                        class="absolute left-7 top-0 bottom-0 w-px bg-gradient-to-b from-cyan-400/30 via-white/10 to-transparent"
+                                    ></div>
+
+                                    <div class="space-y-1 ml-4">
+                                        <Link
+                                            v-for="item in section.items"
+                                            :key="item.key"
+                                            :href="item.href"
+                                            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200 group/item relative text-white"
+                                            :class="{
+                                                'bg-cyan-500/20 border-l-2 border-cyan-400 shadow-lg shadow-cyan-500/10':
+                                                    isItemActive(item.href),
+                                                'hover:bg-white/5 hover:translate-x-1':
+                                                    !isItemActive(item.href),
+                                            }"
+                                            :title="item.description"
+                                        >
+                                            <div
+                                                class="w-6 flex justify-center"
+                                            >
+                                                <i
+                                                    :class="[
+                                                        `fas ${item.icon} w-3.5 h-3.5 transition-all duration-200`,
+                                                        isItemActive(item.href)
+                                                            ? 'text-white scale-110'
+                                                            : 'text-white/75',
+                                                    ]"
+                                                ></i>
+                                            </div>
+                                            <span
+                                                class="flex-1 leading-tight text-white"
+                                                :class="{
+                                                    'font-semibold text-cyan-200':
+                                                        isItemActive(item.href),
+                                                }"
+                                            >
+                                                {{ item.label }}
+                                            </span>
+                                            <span
+                                                v-if="item.badge"
+                                                class="px-1.5 py-0.5 text-[9px] font-bold rounded-full"
+                                                :class="{
+                                                    'bg-cyan-500/40 text-white':
+                                                        item.badge === 'Nuevo',
+                                                    'bg-amber-500/40 text-white':
+                                                        item.badge ===
+                                                        'Pendientes',
+                                                    'bg-red-500/40 text-white':
+                                                        item.badge === 'Admin',
+                                                }"
+                                            >
+                                                {{ item.badge }}
+                                            </span>
+                                            <div
+                                                v-if="isItemActive(item.href)"
+                                                class="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse"
+                                            ></div>
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
                     </div>
-                    <i
-                        class="fas fa-chevron-down w-4 h-4 text-white/40 transition-all duration-300 group-hover:text-white/70"
-                        :class="{ 'rotate-180': isSubmenuOpen.configuracion }"
-                    ></i>
-                </button>
-                <div
-                    v-show="isSubmenuOpen.configuracion"
-                    class="mt-1 ml-4 pl-4 border-l-2 border-white/10 space-y-1 overflow-hidden transition-all duration-300"
-                >
-                    <NavLink
-                        v-for="item in visibleConfigItems"
-                        :key="item.key"
-                        :href="item.href"
-                        class="group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1 transition-all duration-200"
-                    >
-                        <i
-                            :class="`fas ${item.icon} w-4 h-4 text-white/50 group-hover:text-cyan-400 transition-colors`"
-                        ></i>
-                        <span class="flex-1">{{ item.label }}</span>
-                        <span
-                            v-if="item.badge"
-                            class="ml-auto px-1.5 py-0.5 text-[9px] font-medium bg-red-500/20 text-red-300 rounded border border-red-500/30"
-                        >
-                            {{ item.badge }}
-                        </span>
-                    </NavLink>
                 </div>
-            </div>
+            </nav>
+        </template>
 
-            <!-- 🎓 Sección: Centro de Recursos (SOLO para Superadmin/Admin) -->
-            <div v-if="showRecursosSection" class="mb-2">
-                <button
-                    @click="toggleSubmenu('recursos')"
-                    class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all duration-200 group"
-                    type="button"
-                    :aria-expanded="isSubmenuOpen.recursos"
-                >
-                    <div class="flex items-center gap-3">
-                        <i
-                            class="fas fa-graduation-cap w-5 h-5 text-white/60 group-hover:text-cyan-400 transition-colors duration-300"
-                        ></i>
-                        <span>Centro de Recursos</span>
-                    </div>
-                    <i
-                        class="fas fa-chevron-down w-4 h-4 text-white/40 transition-all duration-300 group-hover:text-white/70"
-                        :class="{ 'rotate-180': isSubmenuOpen.recursos }"
-                    ></i>
-                </button>
-                <div
-                    v-show="isSubmenuOpen.recursos"
-                    class="mt-1 ml-4 pl-4 border-l-2 border-white/10 space-y-1 overflow-hidden transition-all duration-300"
-                >
-                    <NavLink
-                        v-for="item in visibleRecursosItems"
-                        :key="item.key"
-                        :href="item.href"
-                        class="group flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1 transition-all duration-200"
-                        :title="item.description"
-                    >
-                        <i
-                            :class="`fas ${item.icon} w-4 h-4 text-white/50 group-hover:text-cyan-400 transition-colors`"
-                        ></i>
-                        <span>{{ item.label }}</span>
-                    </NavLink>
-                </div>
+        <!-- Mensaje para roles sin acceso -->
+        <div v-else class="flex-1 flex items-center justify-center p-8">
+            <div class="text-center">
+                <i class="fas fa-lock text-5xl text-white/30 mb-4"></i>
+                <h3 class="text-white font-semibold text-lg mb-2">
+                    Acceso Restringido
+                </h3>
+                <p class="text-white/60 text-sm">
+                    No tienes permisos para acceder al menú de administración.
+                </p>
+                <p class="text-white/40 text-xs mt-3">
+                    Rol actual: {{ getUserRole()?.nombre || "No detectado" }}
+                </p>
             </div>
-        </nav>
+        </div>
 
-        <!-- Footer: Perfil de usuario con Dropdown -->
+        <!-- Footer: Perfil de usuario -->
         <div
-            class="p-4 border-t border-white/10 bg-gradient-to-b from-transparent to-black/20"
+            class="flex-shrink-0 p-3 border-t border-white/10 bg-gradient-to-t from-black/10 to-transparent"
         >
             <Dropdown align="right" width="48">
                 <template #trigger>
                     <button
-                        class="group w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
+                        class="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
                         type="button"
                     >
-                        <!-- Avatar / Iniciales -->
                         <div class="relative">
                             <div
-                                class="absolute inset-0 bg-cyan-400/30 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                class="absolute inset-0 bg-gradient-to-br from-cyan-400 to-indigo-500 rounded-xl blur-md opacity-0 group-hover:opacity-40 transition-opacity duration-300"
                             ></div>
                             <div
-                                v-if="
-                                    !$page.props.jetstream
-                                        ?.managesProfilePhotos ||
-                                    !$page.props.auth.user?.profile_photo_url
-                                "
-                                class="relative w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold text-lg shadow-lg"
+                                class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 flex items-center justify-center text-white font-semibold text-base shadow-lg"
                             >
                                 {{
                                     $page.props.auth.user?.name
@@ -668,172 +670,83 @@ onUnmounted(() => {
                                         ?.toUpperCase() || "U"
                                 }}
                             </div>
-                            <img
-                                v-else
-                                :src="$page.props.auth.user.profile_photo_url"
-                                :alt="$page.props.auth.user.name"
-                                class="relative w-11 h-11 rounded-xl object-cover border-2 border-white/20 group-hover:border-cyan-400/50 transition-colors duration-300"
-                            />
-                            <!-- Indicador de estado del rol -->
-                            <span
-                                class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#1a3080] shadow-lg"
-                                :class="
-                                    isRoleActive
-                                        ? 'bg-emerald-400 shadow-emerald-500/30 animate-pulse-slow'
-                                        : 'bg-amber-400 shadow-amber-500/30'
-                                "
-                                :title="isRoleActive ? 'Activo' : 'Inactivo'"
-                            ></span>
+                            <div
+                                class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#023E8A] shadow-lg"
+                            ></div>
                         </div>
 
-                        <!-- Información del usuario -->
                         <div class="flex-1 min-w-0 text-left">
                             <p
-                                class="text-sm font-semibold text-white truncate group-hover:text-cyan-300 transition-colors duration-300"
+                                class="text-sm font-semibold text-white truncate group-hover:text-cyan-200 transition-colors"
                             >
                                 {{ $page.props.auth.user?.name || "Usuario" }}
                             </p>
-
-                            <!-- Badge del rol -->
-                            <div
-                                v-if="userRole && isRoleActive"
-                                class="flex items-center gap-2 mt-0.5"
-                            >
-                                <span
-                                    class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border truncate max-w-[140px] cursor-help"
-                                    :class="getRoleBadgeClass(userRoleId)"
-                                    :title="userRole.descripcion"
-                                >
-                                    <i
-                                        class="fas fa-shield-alt w-3 h-3 mr-1"
-                                    ></i>
-                                    {{ userRoleName }}
-                                </span>
-                            </div>
-
-                            <!-- Mensaje si rol está inactivo -->
                             <p
-                                v-else-if="userRole"
-                                class="text-xs text-amber-300/80 mt-0.5"
+                                class="text-xs text-white/60 truncate group-hover:text-white/80 transition-colors"
                             >
-                                <i class="fas fa-pause-circle mr-1"></i>
-                                {{ userRoleName }} • Inactivo
-                            </p>
-
-                            <!-- Email del usuario -->
-                            <p class="text-xs text-white/60 truncate">
                                 {{ $page.props.auth.user?.email || "" }}
                             </p>
                         </div>
 
-                        <!-- Flecha del dropdown -->
-                        <svg
-                            class="w-4 h-4 text-white/40 group-hover:text-white/70 transition-colors flex-shrink-0"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M19 9l-7 7-7-7"
-                            />
-                        </svg>
+                        <i
+                            class="fas fa-chevron-down text-white/60 text-xs group-hover:text-white transition-all group-hover:rotate-180"
+                        ></i>
                     </button>
                 </template>
 
-                <!-- Contenido del Dropdown -->
                 <template #content>
-                    <div class="py-1">
-                        <!-- Cabecera del dropdown -->
+                    <div class="py-2">
                         <div
-                            class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-800 dark:to-blue-900/20"
+                            class="px-4 py-3 border-b border-slate-200/20 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-cyan-50 dark:from-slate-800 dark:to-cyan-900/20"
                         >
                             <p
-                                class="text-sm font-semibold text-gray-900 dark:text-white"
+                                class="text-sm font-bold text-slate-900 dark:text-slate-100"
                             >
                                 {{ $page.props.auth.user?.name }}
                             </p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">
-                                {{ $page.props.auth.user?.email }}
-                            </p>
-                            <!-- Estado y rol en dropdown -->
                             <p
-                                v-if="userRole"
-                                class="text-[10px] mt-1 px-2 py-0.5 rounded inline-block"
-                                :class="{
-                                    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300':
-                                        isRoleActive,
-                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300':
-                                        !isRoleActive,
-                                }"
+                                class="text-xs text-slate-500 dark:text-slate-400"
                             >
-                                <i
-                                    class="fas fa-circle w-2 h-2 mr-1"
-                                    :class="
-                                        isRoleActive
-                                            ? 'text-emerald-500'
-                                            : 'text-amber-500'
-                                    "
-                                ></i>
-                                {{ isRoleActive ? "Activo" : "Inactivo" }} •
-                                {{ userRoleName }}
+                                {{ $page.props.auth.user?.email }}
                             </p>
                         </div>
 
-                        <!-- Links del dropdown -->
                         <DropdownLink
                             :href="route('profile.show')"
-                            class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800"
+                            class="flex items-center gap-3 px-4 py-2.5 text-slate-700 dark:text-slate-300 hover:bg-cyan-50 dark:hover:bg-slate-800 transition-colors"
                         >
-                            <i class="fas fa-user w-4 h-4 text-blue-500"></i>
-                            Perfil
+                            <i
+                                class="fas fa-user-circle w-4 h-4 text-cyan-500"
+                            ></i>
+                            <span>Mi Perfil</span>
                         </DropdownLink>
 
                         <DropdownLink
                             v-if="$page.props.ziggy?.routes?.['profile.edit']"
                             :href="route('profile.edit')"
-                            class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800"
+                            class="flex items-center gap-3 px-4 py-2.5 text-slate-700 dark:text-slate-300 hover:bg-cyan-50 dark:hover:bg-slate-800 transition-colors"
                         >
-                            <i class="fas fa-cog w-4 h-4 text-gray-500"></i>
-                            Configuración
+                            <i class="fas fa-cog w-4 h-4 text-slate-500"></i>
+                            <span>Configuración</span>
                         </DropdownLink>
 
                         <div
-                            class="border-t border-gray-200 dark:border-gray-700 my-1"
+                            class="border-t border-slate-200/20 dark:border-slate-700 my-2"
                         ></div>
+
                         <form @submit.prevent="logout">
                             <DropdownLink
                                 as="button"
-                                class="flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
+                                class="flex items-center gap-3 px-4 py-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 w-full text-left transition-colors"
                             >
-                                <i
-                                    class="fas fa-right-from-bracket w-4 h-4"
-                                ></i>
-                                Cerrar Sesión
+                                <i class="fas fa-sign-out-alt w-4 h-4"></i>
+                                <span>Cerrar Sesión</span>
                             </DropdownLink>
                         </form>
                     </div>
                 </template>
             </Dropdown>
         </div>
-
-        <!-- Upgrade Button (SOLO para Superadmin We collab ID 1 y solo si está activo) -->
-        <!-- <div v-if="isSuperAdminWeCollab && isRoleActive" class="p-4">
-            <button
-                class="group w-full relative overflow-hidden bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 text-sm shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] active:scale-[0.98]"
-                type="button"
-            >
-                <div
-                    class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"
-                ></div>
-                <span class="relative flex items-center justify-center gap-2">
-                    <span class="text-lg">✨</span>
-                    <span>Upgrade to pro</span>
-                </span>
-            </button>
-        </div> -->
     </aside>
 
     <!-- Overlay para móvil -->
@@ -847,74 +760,73 @@ onUnmounted(() => {
     >
         <div
             v-show="showingNavigationDropdown"
-            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-            @click="emit('update:showingNavigationDropdown', false)"
+            class="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
+            @click="closeSidebar"
         ></div>
     </transition>
 </template>
 
 <style scoped>
+/* Scrollbar personalizado */
 nav::-webkit-scrollbar {
-    width: 4px;
-}
-nav::-webkit-scrollbar-track {
-    background: transparent;
-}
-nav::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-}
-nav::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.4);
+    width: 5px;
 }
 
-aside::-webkit-scrollbar {
-    width: 6px;
-}
-aside::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
+nav::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
     border-radius: 10px;
 }
-aside::-webkit-scrollbar-thumb {
+
+nav::-webkit-scrollbar-thumb {
     background: linear-gradient(
         180deg,
         rgba(34, 211, 238, 0.4),
-        rgba(59, 130, 246, 0.4)
+        rgba(99, 102, 241, 0.4)
     );
     border-radius: 10px;
 }
-aside::-webkit-scrollbar-thumb:hover {
+
+nav::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(
         180deg,
         rgba(34, 211, 238, 0.6),
-        rgba(59, 130, 246, 0.6)
+        rgba(99, 102, 241, 0.6)
     );
+}
+
+/* Transiciones */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+/* Animaciones */
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .rotate-180 {
     transform: rotate(180deg);
 }
 
-.v-enter-active,
-.v-leave-active {
-    transition: all 0.3s ease;
-}
-.v-enter-from,
-.v-leave-to {
-    opacity: 0;
-    transform: translateY(-10px);
-}
-
-@keyframes pulse-slow {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.7;
-    }
-}
-.animate-pulse-slow {
-    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+/* Mejora de renderizado */
+aside {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 </style>
