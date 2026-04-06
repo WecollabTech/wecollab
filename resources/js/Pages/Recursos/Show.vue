@@ -18,12 +18,30 @@ const props = defineProps({
 const resource = ref(null);
 const loading = ref(true);
 const error = ref(null);
-const videoLoaded = ref(false);
+const contentLoaded = ref(false);
 const isFullscreen = ref(false);
 const playerContainer = ref(null);
 
 const page = usePage();
 const pageProps = page.props;
+
+// ─────────────────────────────────────────────────────────────
+// 🎯 DETECCIÓN DE TIPO DE CONTENIDO
+// ─────────────────────────────────────────────────────────────
+const getContentType = (url) => {
+    if (!url) return null;
+    const lower = url.toLowerCase();
+
+    if (lower.includes("youtube.com") || lower.includes("youtu.be"))
+        return "youtube";
+    if (lower.includes("vimeo.com")) return "vimeo";
+    if (lower.includes("docs.google.com/document")) return "gdocs";
+    if (lower.includes("docs.google.com/spreadsheets")) return "gsheets";
+    if (lower.includes("docs.google.com/presentation")) return "gslides";
+    if (lower.includes("drive.google.com/file")) return "gdrive";
+
+    return "unknown";
+};
 
 // ─────────────────────────────────────────────────────────────
 // 🎬 FUNCIONES PARA VIDEO EMBEBIDO
@@ -78,20 +96,107 @@ const getVideoThumbnail = (url) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// 📄 FUNCIONES PARA GOOGLE DOCS/SHEETS/SLIDES/DRIVE
+// ─────────────────────────────────────────────────────────────
+const extractGoogleFileId = (url) => {
+    if (!url) return null;
+
+    // Docs/Sheets/Slides: /d/FILE_ID/
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) return match[1];
+
+    // Drive: /file/d/FILE_ID/
+    const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) return driveMatch[1];
+
+    return null;
+};
+
+const getGoogleEmbedUrl = (url, type = "gdocs") => {
+    const fileId = extractGoogleFileId(url);
+    if (!fileId) return null;
+
+    const baseUrl = {
+        gdocs: `https://docs.google.com/document/d/${fileId}/preview`,
+        gsheets: `https://docs.google.com/spreadsheets/d/${fileId}/preview?widget=true&headers=false`,
+        gslides: `https://docs.google.com/presentation/d/${fileId}/embed?start=false&loop=false&delayms=3000`,
+        gdrive: `https://drive.google.com/file/d/${fileId}/preview`,
+    };
+
+    return baseUrl[type] || baseUrl.gdrive;
+};
+
+const getDocumentThumbnail = (url, type) => {
+    // Icons por tipo de documento
+    const icons = {
+        gdocs: "📄",
+        gsheets: "📊",
+        gslides: "🎞️",
+        gdrive: "📁",
+    };
+    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1a1a2e"/><text x="50" y="60" font-size="40" text-anchor="middle">${icons[type] || "📄"}</text></svg>`)}`;
+};
+
+// ─────────────────────────────────────────────────────────────
 // 📊 COMPUTED PROPERTIES
 // ─────────────────────────────────────────────────────────────
+const contentType = computed(() =>
+    resource.value?.url ? getContentType(resource.value.url) : null,
+);
+
+const isVideo = computed(() =>
+    ["youtube", "vimeo"].includes(contentType.value),
+);
+const isDocument = computed(() =>
+    ["gdocs", "gsheets", "gslides", "gdrive"].includes(contentType.value),
+);
+
 const hasValidVideo = computed(() => {
-    return resource.value?.url && extractYouTubeId(resource.value.url) !== null;
+    if (!resource.value?.url || !isVideo.value) return false;
+    if (contentType.value === "youtube")
+        return extractYouTubeId(resource.value.url) !== null;
+    return true; // Vimeo con URL válida
 });
 
-const videoEmbedUrl = computed(() => {
-    return resource.value?.url
-        ? getYouTubeEmbedUrl(resource.value.url, true)
-        : null;
+const hasValidDocument = computed(() => {
+    if (!resource.value?.url || !isDocument.value) return false;
+    return extractGoogleFileId(resource.value.url) !== null;
 });
 
-const videoThumbnail = computed(() => {
-    return resource.value?.url ? getVideoThumbnail(resource.value.url) : null;
+const embedUrl = computed(() => {
+    if (!resource.value?.url) return null;
+
+    if (contentType.value === "youtube")
+        return getYouTubeEmbedUrl(resource.value.url, true);
+    if (contentType.value === "vimeo")
+        return getVimeoEmbedUrl(resource.value.url, true);
+    if (isDocument.value)
+        return getGoogleEmbedUrl(resource.value.url, contentType.value);
+
+    return null;
+});
+
+const contentThumbnail = computed(() => {
+    if (!resource.value?.url) return null;
+
+    if (isVideo.value) return getVideoThumbnail(resource.value.url);
+    if (isDocument.value)
+        return getDocumentThumbnail(resource.value.url, contentType.value);
+
+    return null;
+});
+
+const contentTitle = computed(() => {
+    if (!resource.value) return "Cargando...";
+    const titles = {
+        youtube: "Video de YouTube",
+        vimeo: "Video de Vimeo",
+        gdocs: "Documento de Google",
+        gsheets: "Hoja de cálculo de Google",
+        gslides: "Presentación de Google",
+        gdrive: "Archivo de Google Drive",
+    };
+    return titles[contentType.value] || "Contenido";
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -125,12 +230,17 @@ const handleFullscreenChange = () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 🚫 BLOQUEO DE INTERACCIONES EN CAPAS PROTECTORAS
+// 🚫 BLOQUEO DE INTERACCIONES (solo para videos)
 // ─────────────────────────────────────────────────────────────
 const preventInteraction = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    return false;
+    // Solo bloquear si es video (para ocultar controles de YouTube)
+    if (isVideo.value) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+    }
+    // Para documentos: permitir interacción normal
+    return true;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -153,7 +263,7 @@ const loadResource = async () => {
 
     loading.value = true;
     error.value = null;
-    videoLoaded.value = false;
+    contentLoaded.value = false;
 
     try {
         const { data } = await axios.get(`/api/recursos/${resourceId}`);
@@ -173,16 +283,14 @@ const loadResource = async () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// 🔙 VOLVER AL DASHBOARD (Ruta nombrada 'dashboard')
+// 🔙 VOLVER AL DASHBOARD
 // ─────────────────────────────────────────────────────────────
 const handleBack = () => {
-    // ✅ Redirección directa usando ruta nombrada de Laravel
-    // El middleware resolverá automáticamente Dashboard o Usuarios según el rol
     router.visit(route("dashboard"));
 };
 
 // ─────────────────────────────────────────────────────────────
-// 🎨 ESTILOS DE PANTALLA COMPLETA PARA OCULTAR CONTROLES YOUTUBE
+// 🎨 ESTILOS FULLSCREEN
 // ─────────────────────────────────────────────────────────────
 const injectFullscreenStyles = () => {
     if (
@@ -196,10 +304,15 @@ const injectFullscreenStyles = () => {
             :-webkit-full-screen .ytp-chrome-bottom,
             :fullscreen .ytp-chrome-top,
             :fullscreen .ytp-chrome-bottom {
-                display: none !important;
-                opacity: 0 !important;
-                visibility: hidden !important;
-                pointer-events: none !important;
+                display: none !important; opacity: 0 !important;
+                visibility: hidden !important; pointer-events: none !important;
+            }
+            /* Para documentos: permitir scroll en fullscreen */
+            :-webkit-full-screen iframe,
+            :fullscreen iframe {
+                width: 100% !important;
+                height: 100% !important;
+                border: none;
             }
         `;
         document.head.appendChild(style);
@@ -225,23 +338,22 @@ onUnmounted(() => {
 });
 
 watch(resource, (newVal) => {
-    if (newVal && newVal.url) {
+    if (newVal?.url && embedUrl.value) {
+        // Pequeño delay para asegurar que el iframe se renderice
         setTimeout(() => {
-            if (videoEmbedUrl.value) {
-                videoLoaded.value = true;
-            }
+            contentLoaded.value = true;
         }, 500);
     }
 });
 </script>
 
 <template>
-    <AppLayout :title="resource?.titulo || 'Reproduciendo...'">
+    <AppLayout :title="resource?.titulo || contentTitle">
         <main
             class="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800"
         >
             <div class="max-w-screen-xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-                <!-- 🔙 Botón VOLVER AL DASHBOARD (único elemento de navegación) -->
+                <!-- 🔙 Botón VOLVER -->
                 <div class="mb-6">
                     <button
                         @click="handleBack"
@@ -290,7 +402,7 @@ watch(resource, (newVal) => {
                     </button>
                 </div>
 
-                <!-- 🎬 VIDEO PLAYER CON BLOQUEOS SUPERIOR/INFERIOR -->
+                <!-- 🎬📄 PLAYER UNIVERSAL -->
                 <section
                     v-else-if="resource?.url"
                     ref="playerContainer"
@@ -301,14 +413,14 @@ watch(resource, (newVal) => {
                     >
                         <!-- Thumbnail mientras carga -->
                         <div
-                            v-if="!videoLoaded"
+                            v-if="!contentLoaded"
                             class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm z-10"
                         >
                             <div
-                                v-if="videoThumbnail"
-                                class="absolute inset-0 bg-cover bg-center opacity-30"
+                                v-if="contentThumbnail"
+                                class="absolute inset-0 bg-cover bg-center opacity-20"
                                 :style="{
-                                    backgroundImage: `url(${videoThumbnail})`,
+                                    backgroundImage: `url(${contentThumbnail})`,
                                 }"
                             >
                                 <div
@@ -316,35 +428,42 @@ watch(resource, (newVal) => {
                                 ></div>
                             </div>
                             <div
-                                class="relative flex items-center justify-center w-20 h-20 rounded-full bg-white/10 backdrop-blur-md border border-white/20"
+                                class="relative flex items-center justify-center w-20 h-20 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-3xl"
                             >
-                                <svg
-                                    class="w-8 h-8 text-white/80 ml-1"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path d="M8 5v14l11-7z" />
-                                </svg>
+                                {{
+                                    isVideo
+                                        ? "▶"
+                                        : isDocument
+                                          ? contentType === "gsheets"
+                                              ? "📊"
+                                              : contentType === "gslides"
+                                                ? "🎞️"
+                                                : "📄"
+                                          : "📁"
+                                }}
                             </div>
                             <p
                                 class="mt-5 text-sm text-slate-400 font-medium animate-pulse"
                             >
-                                Cargando video...
+                                {{
+                                    isVideo
+                                        ? "Cargando video..."
+                                        : "Cargando documento..."
+                                }}
                             </p>
                         </div>
 
-                        <!-- Iframe de YouTube con capas protectoras ORIGINAL -->
+                        <!-- IFRAME PARA VIDEO (YouTube/Vimeo) -->
                         <div
-                            v-if="hasValidVideo && videoEmbedUrl"
+                            v-if="isVideo && hasValidVideo && embedUrl"
                             class="relative w-full h-full overflow-hidden"
                         >
-                            <!-- VIDEO IFRAME -->
                             <iframe
-                                :src="videoEmbedUrl"
+                                :src="embedUrl"
                                 :title="resource.titulo"
                                 class="absolute inset-0 w-full h-full transition-opacity duration-500"
                                 :class="
-                                    videoLoaded ? 'opacity-100' : 'opacity-0'
+                                    contentLoaded ? 'opacity-100' : 'opacity-0'
                                 "
                                 frameborder="0"
                                 allow="
@@ -358,19 +477,19 @@ watch(resource, (newVal) => {
                                 "
                                 referrerpolicy="strict-origin-when-cross-origin"
                                 loading="lazy"
-                                @load="videoLoaded = true"
+                                @load="contentLoaded = true"
                             ></iframe>
 
-                            <!-- 🔒 CAPA SUPERIOR DE BLOQUEO (DISEÑO ORIGINAL) -->
+                            <!-- 🔒 CAPAS DE BLOQUEO (solo para videos - ocultan controles) -->
                             <div
+                                v-if="contentType === 'youtube'"
                                 class="absolute top-0 left-0 right-0 z-30 h-[clamp(60px,12%,120px)] bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-auto"
                                 @click.prevent="preventInteraction"
                                 @touchstart.prevent="preventInteraction"
                                 @contextmenu.prevent="preventInteraction"
                             ></div>
-
-                            <!-- 🔒 CAPA INFERIOR DE BLOQUEO (DISEÑO ORIGINAL) -->
                             <div
+                                v-if="contentType === 'youtube'"
                                 class="absolute bottom-0 left-0 right-0 z-30 h-[clamp(80px,14%,140px)] bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-auto"
                                 @click.prevent="preventInteraction"
                                 @touchstart.prevent="preventInteraction"
@@ -378,9 +497,31 @@ watch(resource, (newVal) => {
                             ></div>
                         </div>
 
-                        <!-- Video no disponible -->
+                        <!-- IFRAME PARA DOCUMENTOS (Google Docs/Sheets/Slides/Drive) -->
                         <div
-                            v-else-if="!hasValidVideo"
+                            v-else-if="
+                                isDocument && hasValidDocument && embedUrl
+                            "
+                            class="relative w-full h-full overflow-hidden"
+                        >
+                            <iframe
+                                :src="embedUrl"
+                                :title="resource.titulo"
+                                class="absolute inset-0 w-full h-full transition-opacity duration-500 border-0"
+                                :class="
+                                    contentLoaded ? 'opacity-100' : 'opacity-0'
+                                "
+                                frameborder="0"
+                                allowfullscreen
+                                loading="lazy"
+                                @load="contentLoaded = true"
+                            ></iframe>
+                            <!-- Sin capas de bloqueo para documentos → usuario puede interactuar -->
+                        </div>
+
+                        <!-- Contenido no compatible -->
+                        <div
+                            v-else-if="!hasValidVideo && !hasValidDocument"
                             class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center p-6"
                         >
                             <svg
@@ -394,23 +535,57 @@ watch(resource, (newVal) => {
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
                                     stroke-width="1"
-                                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
                                 />
                             </svg>
                             <h3 class="text-xl font-semibold text-white mb-2">
-                                Video no disponible
+                                Contenido no compatible
                             </h3>
                             <p class="text-slate-400 text-sm max-w-xs">
-                                La URL del video no es compatible o el contenido
-                                ha sido restringido.
+                                {{
+                                    contentType === "unknown"
+                                        ? "La URL no es de un servicio soportado."
+                                        : "No se pudo procesar este tipo de contenido."
+                                }}
+                            </p>
+                            <p class="text-slate-500 text-xs mt-2 break-all">
+                                {{ resource.url }}
                             </p>
                         </div>
                     </div>
 
-                    <!-- Botón Fullscreen (posicionado fuera de las capas de bloqueo) -->
+                    <!-- Badge de tipo de contenido -->
+                    <div class="absolute top-4 left-4 z-40">
+                        <span
+                            :class="[
+                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border',
+                                isVideo
+                                    ? 'bg-rose-500/20 text-rose-200 border-rose-400/30'
+                                    : isDocument
+                                      ? 'bg-blue-500/20 text-blue-200 border-blue-400/30'
+                                      : 'bg-gray-500/20 text-gray-200 border-gray-400/30',
+                            ]"
+                        >
+                            {{
+                                isVideo
+                                    ? "🎬 Video"
+                                    : isDocument
+                                      ? contentType === "gsheets"
+                                          ? "📊 Sheets"
+                                          : contentType === "gslides"
+                                            ? "🎞️ Slides"
+                                            : contentType === "gdocs"
+                                              ? "📄 Docs"
+                                              : "📁 Drive"
+                                      : "📦 Contenido"
+                            }}
+                        </span>
+                    </div>
+
+                    <!-- Botón Fullscreen -->
                     <button
                         @click="toggleFullscreen"
-                        class="absolute z-40 right-3 bottom-[95px] md:bottom-[85px] flex items-center justify-center w-11 h-11 md:w-10 md:h-10 rounded-lg bg-black/50 hover:bg-black/70 text-white/90 hover:text-white backdrop-blur-md transition-all duration-200"
+                        class="absolute z-40 right-3 bottom-4 flex items-center justify-center w-10 h-10 rounded-lg bg-black/40 hover:bg-black/60 text-white/90 hover:text-white backdrop-blur-sm border border-white/10 transition-all duration-200"
                         :title="
                             isFullscreen
                                 ? 'Salir de pantalla completa'
@@ -448,12 +623,12 @@ watch(resource, (newVal) => {
                     </button>
                 </section>
 
-                <!-- Fallback si no hay URL de video -->
+                <!-- Fallback sin URL -->
                 <div
                     v-else-if="!loading && !error && !resource?.url"
                     class="text-center py-12 text-gray-500 dark:text-gray-400"
                 >
-                    Este recurso no contiene un video para reproducir
+                    Este recurso no contiene contenido para visualizar
                 </div>
             </div>
         </main>
@@ -461,7 +636,6 @@ watch(resource, (newVal) => {
 </template>
 
 <style scoped>
-/* Animación shimmer para loading */
 @keyframes shimmer {
     100% {
         transform: translateX(100%);
@@ -470,20 +644,21 @@ watch(resource, (newVal) => {
 .animate-shimmer {
     animation: shimmer 1.5s infinite;
 }
-
-/* Aspect ratio 16:9 para video */
 .aspect-video {
     aspect-ratio: 16 / 9;
 }
-
-/* Prevención de selección de texto en el player */
 .player-container {
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
 }
-
-/* Estilos para pantalla completa del contenedor */
+/* Permitir selección en documentos */
+.player-container:has(iframe[src*="docs.google.com"]),
+.player-container:has(iframe[src*="drive.google.com"]) {
+    user-select: text;
+    -webkit-user-select: text;
+    touch-action: auto;
+}
 .player-container:fullscreen,
 .player-container:-webkit-full-screen {
     width: 100vw;
@@ -496,8 +671,6 @@ watch(resource, (newVal) => {
     z-index: 9999;
     border-radius: 0 !important;
 }
-
-/* Scrollbar sutil */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

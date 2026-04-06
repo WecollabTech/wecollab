@@ -362,7 +362,7 @@ onMounted(() => {
                             </div>
                         </div>
                         <button
-                            @click="irA('/tutoriales')"
+                            @click="irA('/recursos')"
                             class="mt-4 text-sm text-emerald-600 hover:text-emerald-800 flex items-center gap-1"
                         >
                             Ver tutoriales →
