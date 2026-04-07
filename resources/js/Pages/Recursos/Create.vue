@@ -266,6 +266,7 @@
                                 >
                                     Alcance *
                                 </label>
+
                                 <select
                                     v-model="form.alcance"
                                     class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500"
@@ -277,26 +278,33 @@
                                     <option value="">
                                         Seleccione un alcance
                                     </option>
-                                    <option value="Superadmin We collab">
-                                        Superadmin We collab
+                                    <option value="Superadmin we collab">
+                                        Superadmin we collab
                                     </option>
-                                    <option value="Admin We collab">
-                                        Admin We collab
+                                    <option value="Admin we collab">
+                                        Admin we collab
+                                    </option>
+                                    <option value="Soporte we collab">
+                                        Soporte we collab
+                                    </option>
+                                    <option value="Usuario we collab">
+                                        Usuario we collab
                                     </option>
                                     <option value="Suscriptor SLC">
                                         Suscriptor SLC
                                     </option>
-                                    <option value="Cliente Admin">
-                                        Cliente Admin
+                                    <option value="Usuario Admin SLC">
+                                        Usuario Admin SLC
                                     </option>
-                                    <option value="Cliente Premium">
-                                        Cliente Premium
+                                    <option value="Usuario Premium SLC">
+                                        Usuario Premium SLC
                                     </option>
                                     <option value="Usuario Público">
                                         Usuario Público
                                     </option>
                                     <option value="Prospecto">Prospecto</option>
                                 </select>
+
                                 <p
                                     v-if="errors.alcance"
                                     class="mt-1 text-sm text-red-600"
@@ -312,6 +320,7 @@
                                 >
                                     Estado *
                                 </label>
+
                                 <div class="flex gap-4">
                                     <label class="inline-flex items-center">
                                         <input
@@ -322,6 +331,7 @@
                                         />
                                         <span class="ml-2">Activo</span>
                                     </label>
+
                                     <label class="inline-flex items-center">
                                         <input
                                             type="radio"
@@ -332,6 +342,7 @@
                                         <span class="ml-2">Inactivo</span>
                                     </label>
                                 </div>
+
                                 <p
                                     v-if="errors.estado"
                                     class="mt-1 text-sm text-red-600"
