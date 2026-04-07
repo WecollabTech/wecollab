@@ -191,7 +191,7 @@
                                 </div>
                             </div>
 
-                            <!-- Botones de acción -->
+                            <!-- Botones de acción con permisos -->
                             <div
                                 class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200"
                             >
@@ -201,13 +201,19 @@
                                 >
                                     Volver
                                 </Link>
+
+                                <!-- Botón Editar - visible para Superadmin y Admin -->
                                 <Link
+                                    v-if="puedeEditar"
                                     :href="route('usuarios.edit', user.id)"
                                     class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out"
                                 >
                                     Editar Usuario
                                 </Link>
+
+                                <!-- Botón Activar/Desactivar - visible para Superadmin y Admin -->
                                 <button
+                                    v-if="puedeCambiarEstado"
                                     @click="toggleStatus"
                                     :class="
                                         user.status === 'activo'
@@ -222,7 +228,10 @@
                                             : "Activar"
                                     }}
                                 </button>
+
+                                <!-- 🔐 Botón Eliminar - SOLO visible para Superadmin -->
                                 <button
+                                    v-if="puedeEliminar"
                                     @click="deleteUser"
                                     class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out"
                                 >
@@ -238,8 +247,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import { Link, router } from "@inertiajs/vue3";
+import { ref, onMounted, computed } from "vue";
+import { Link, router, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { usuarioService } from "@/services/usuarioService";
 import Swal from "sweetalert2";
@@ -250,6 +259,37 @@ const props = defineProps({
         required: true,
     },
 });
+
+// 🔐 Obtener usuario actual y su rol
+const page = usePage();
+const currentUser = computed(() => page.props.auth?.user);
+
+// 🔐 Obtener rol del usuario actual
+const getUserRole = () => {
+    const user = currentUser.value;
+    if (!user) return "Invitado";
+
+    const role = user.role;
+    if (!role) return "Sin rol";
+
+    if (typeof role === "object") {
+        return role.nombre?.toString() || role.name?.toString() || "";
+    }
+    return role.toString();
+};
+
+// 🔐 Definir roles
+const ROL_SUPERADMIN = "Superadmin we collab";
+const ROL_ADMIN = "Admin we collab";
+
+// 🔐 Permisos basados en rol
+const esSuperadmin = computed(() => getUserRole() === ROL_SUPERADMIN);
+const esAdmin = computed(() => getUserRole() === ROL_ADMIN);
+
+// 🔐 Permisos específicos
+const puedeEliminar = computed(() => esSuperadmin.value); // Solo Superadmin puede eliminar
+const puedeEditar = computed(() => esSuperadmin.value || esAdmin.value); // Admin y Superadmin pueden editar
+const puedeCambiarEstado = computed(() => esSuperadmin.value || esAdmin.value); // Admin y Superadmin pueden cambiar estado
 
 const user = ref(null);
 const loading = ref(true);
@@ -284,6 +324,16 @@ const loadUser = async () => {
 };
 
 const toggleStatus = async () => {
+    // Verificar permisos
+    if (!puedeCambiarEstado.value) {
+        Swal.fire(
+            "Error",
+            "No tienes permisos para cambiar el estado",
+            "error",
+        );
+        return;
+    }
+
     const result = await Swal.fire({
         title: "¿Estás seguro?",
         text: `¿Deseas ${user.value.status === "activo" ? "desactivar" : "activar"} a ${user.value.name} ${user.value.apellido}?`,
@@ -315,6 +365,16 @@ const toggleStatus = async () => {
 };
 
 const deleteUser = async () => {
+    // Verificar permisos nuevamente por seguridad
+    if (!puedeEliminar.value) {
+        Swal.fire(
+            "Error",
+            "No tienes permisos para eliminar usuarios",
+            "error",
+        );
+        return;
+    }
+
     const result = await Swal.fire({
         title: "¿Estás seguro?",
         text: `¿Eliminar permanentemente a ${user.value.name} ${user.value.apellido}? Esta acción no se puede deshacer.`,

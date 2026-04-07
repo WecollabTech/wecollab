@@ -16,6 +16,7 @@
                                 Lista de Usuarios
                             </h3>
                             <Link
+                                v-if="puedeCrear"
                                 :href="route('usuarios.create')"
                                 class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                             >
@@ -167,6 +168,7 @@
                                                 >Ver</Link
                                             >
                                             <Link
+                                                v-if="puedeEditar"
                                                 :href="
                                                     route(
                                                         'usuarios.edit',
@@ -177,6 +179,7 @@
                                                 >Editar</Link
                                             >
                                             <button
+                                                v-if="puedeCambiarEstado"
                                                 @click="toggleStatus(user)"
                                                 class="text-green-600 hover:text-green-900"
                                             >
@@ -186,9 +189,11 @@
                                                         : "Activar"
                                                 }}
                                             </button>
+                                            <!-- 🔐 Botón Eliminar - SOLO Superadmin -->
                                             <button
+                                                v-if="puedeEliminar"
                                                 @click="deleteUser(user)"
-                                                class="text-red-600 hover:text-red-900"
+                                                class="text-red-600 hover:text-red-900 font-medium"
                                             >
                                                 Eliminar
                                             </button>
@@ -225,12 +230,44 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { Link } from "@inertiajs/vue3";
+import { Link, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import Pagination from "@/Components/Pagination.vue";
 import { usuarioService } from "@/services/usuarioService";
 import Swal from "sweetalert2";
 import { debounce } from "lodash";
+
+// 🔐 Obtener usuario actual y su rol
+const page = usePage();
+const currentUser = computed(() => page.props.auth?.user);
+
+// 🔐 Obtener rol del usuario actual
+const getUserRole = () => {
+    const user = currentUser.value;
+    if (!user) return "Invitado";
+
+    const role = user.role;
+    if (!role) return "Sin rol";
+
+    if (typeof role === "object") {
+        return role.nombre?.toString() || role.name?.toString() || "";
+    }
+    return role.toString();
+};
+
+// 🔐 Definir roles
+const ROL_SUPERADMIN = "Superadmin we collab";
+const ROL_ADMIN = "Admin we collab";
+
+// 🔐 Permisos basados en rol
+const esSuperadmin = computed(() => getUserRole() === ROL_SUPERADMIN);
+const esAdmin = computed(() => getUserRole() === ROL_ADMIN);
+
+// 🔐 Permisos específicos
+const puedeEliminar = computed(() => esSuperadmin.value); // Solo Superadmin puede eliminar
+const puedeEditar = computed(() => esSuperadmin.value || esAdmin.value); // Admin y Superadmin pueden editar
+const puedeCambiarEstado = computed(() => esSuperadmin.value || esAdmin.value); // Admin y Superadmin pueden cambiar estado
+const puedeCrear = computed(() => esSuperadmin.value || esAdmin.value); // Admin y Superadmin pueden crear
 
 const usuariosRaw = ref({
     data: [],
@@ -284,6 +321,15 @@ const loadRoles = async () => {
 };
 
 const toggleStatus = async (user) => {
+    if (!puedeCambiarEstado.value) {
+        Swal.fire(
+            "Error",
+            "No tienes permisos para cambiar el estado",
+            "error",
+        );
+        return;
+    }
+
     try {
         await usuarioService.toggleStatus(user.id);
         await loadUsuarios();
@@ -298,6 +344,16 @@ const toggleStatus = async (user) => {
 };
 
 const deleteUser = async (user) => {
+    // Verificar permisos nuevamente por seguridad
+    if (!puedeEliminar.value) {
+        Swal.fire(
+            "Error",
+            "No tienes permisos para eliminar usuarios",
+            "error",
+        );
+        return;
+    }
+
     const result = await Swal.fire({
         title: "¿Estás seguro?",
         text: `¿Eliminar a ${user.name} ${user.apellido}?`,
