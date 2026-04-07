@@ -1433,9 +1433,7 @@ onMounted(async () => {
                                                 clip-rule="evenodd"
                                             />
                                         </svg>
-                                        Si proporcionas un ID, se te asignará el
-                                        rol
-                                        <strong>Cliente Admin</strong>
+                                        proporcionas un ID de una compañia
                                     </p>
                                 </div>
 

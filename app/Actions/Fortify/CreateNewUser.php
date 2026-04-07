@@ -213,13 +213,13 @@ class CreateNewUser implements CreatesNewUsers
         // ====================================================================
 
         // 🆕 Determinar rol: si hay company_id → "cliente_premium", sino → "usuario"
-        $roleKey = !empty($input['company_id']) ? 'Cliente Premium' : 'usuario';
-        $roleLabel = $roleKey === 'Cliente Premium' ? 'Cliente Premium' : 'Usuario';
+        $roleKey = !empty($input['company_id']) ? 'Usuario Admin SLC' : 'Usuario Publico';
+        $roleLabel = $roleKey === 'Usuario Admin SLC' ? 'Usuario Admin SLC' : 'Usuario Publico';
 
         $role = Role::firstOrCreate(
             ['nombre' => $roleKey],  // nombre interno: 'cliente_premium' o 'usuario'
             [
-                'descripcion' => $roleKey === 'cliente_premium'
+                'descripcion' => $roleKey === 'Usuario Admin SLC'
                     ? 'Cliente Premium con acceso a compañía'
                     : 'Usuario estándar del sistema'
             ]
