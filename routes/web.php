@@ -35,7 +35,7 @@ Route::middleware([
 ])->get('/dashboard', function () {
     $user = Auth::user();
     $rol = optional($user->role)->nombre;
-    if ($rol === 'Superadmin we collab' || $rol === 'Admin We collab') {
+    if ($rol === 'Superadmin we collab' || $rol === 'Admin we collab') {
         return Inertia::render('Dashboard');
     }
     return Inertia::render('Usuarios');
