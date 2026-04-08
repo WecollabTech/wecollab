@@ -827,7 +827,7 @@ const tipos = [
     { label: "Video", value: "video", icon: "🎬" },
     { label: "Manual", value: "manual", icon: "📖" },
     { label: "Guía", value: "guia", icon: "🧭" },
-    { label: "Tríptico", value: "triptico", icon: "🎨" },
+    { label: "Infografia", value: "triptico", icon: "🎨" },
 ];
 
 // 🎯 JERARQUÍA COMPLETA DE ROLES
