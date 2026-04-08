@@ -331,6 +331,7 @@
                                 >
                                     Alcance *
                                 </label>
+
                                 <select
                                     v-model="form.alcance"
                                     class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors"
@@ -338,35 +339,43 @@
                                         'border-red-500 dark:border-red-500':
                                             errors.alcance,
                                     }"
+                                    @change="validarCampo('alcance')"
                                 >
                                     <option value="">
                                         Seleccione un alcance
                                     </option>
-                                    <option value="Superadmin We collab">
-                                        Superadmin We collab
+                                    <option value="Superadmin we collab">
+                                        Superadmin we collab
                                     </option>
-                                    <option value="Admin We collab">
-                                        Admin We collab
+                                    <option value="Admin we collab">
+                                        Admin we collab
+                                    </option>
+                                    <option value="Soporte we collab">
+                                        Soporte we collab
+                                    </option>
+                                    <option value="Usuario we collab">
+                                        Usuario we collab
                                     </option>
                                     <option value="Suscriptor SLC">
                                         Suscriptor SLC
                                     </option>
-                                    <option value="Cliente Admin">
-                                        Cliente Admin
+                                    <option value="Usuario Admin SLC">
+                                        Usuario Admin SLC
                                     </option>
-                                    <option value="Cliente Premium">
-                                        Cliente Premium
+                                    <option value="Usuario Premium SLC">
+                                        Usuario Premium SLC
                                     </option>
-                                    <option value="Usuario Publico">
-                                        Usuario Publico
+                                    <option value="Usuario Público">
+                                        Usuario Público
                                     </option>
                                     <option value="Prospecto">Prospecto</option>
                                 </select>
+
                                 <p
                                     v-if="errors.alcance"
                                     class="mt-1 text-sm text-red-600 dark:text-red-400"
                                 >
-                                    {{ errors.alcance }}
+                                    {{ errors.alcance[0] || errors.alcance }}
                                 </p>
                             </div>
 
