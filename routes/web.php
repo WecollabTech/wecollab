@@ -12,6 +12,8 @@ use App\Models\Tutorial;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Laravel\Jetstream\Http\Controllers\Inertia\PrivacyPolicyController;
+use Laravel\Jetstream\Http\Controllers\Inertia\TermsOfServiceController;
 
 // =========================================================================
 // RUTAS PÚBLICAS
@@ -213,3 +215,11 @@ Route::middleware(['auth', 'verified'])
 
         // Nota: La lógica de exportar está en API, solo la vista aquí
     });
+
+
+
+Route::get('/terminos-y-condiciones', [TermsOfServiceController::class, 'show'])
+    ->name('terms.show');
+
+Route::get('/aviso-de-privacidad', [PrivacyPolicyController::class, 'show'])
+    ->name('policy.show');

@@ -23,9 +23,18 @@
                                 v-if="getUserRole() !== 'Invitado'"
                                 class="text-indigo-600 ml-1"
                             >
-                                • {{ getUserRole() }} (Nivel
-                                {{ getRolLevel(getUserRole()) }})
+                                <!-- • {{ getUserRole() }} (Nivel
+                                {{ getRolLevel(getUserRole()) }}) -->
                             </span>
+                            <span
+                                v-if="esRolWeCollab()"
+                                class="text-purple-600 ml-2 text-xs"
+                                >🏢 We Collab</span
+                            >
+                            <span
+                                v-else-if="esRolCliente()"
+                                class="text-teal-600 ml-2 text-xs"
+                            ></span>
                         </p>
                     </div>
 
@@ -69,7 +78,7 @@
                     </div>
                 </div>
 
-                <!-- Filtros de tipo -->
+                <!-- Filtros de tipo con iconos mejorados -->
                 <div class="flex flex-wrap gap-2 mt-4">
                     <button
                         v-for="tipo in tipos"
@@ -182,13 +191,36 @@
                 <div v-for="i in 10" :key="i" class="animate-pulse">
                     <div
                         v-if="viewMode === 'grid'"
-                        class="bg-gray-200 rounded-xl h-40"
+                        class="bg-gray-200 rounded-xl h-48"
                     ></div>
                     <div class="mt-3 space-y-2">
                         <div class="h-4 bg-gray-200 rounded w-3/4"></div>
                         <div class="h-3 bg-gray-100 rounded w-full"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Mensaje si es cliente y no hay contenido visible -->
+            <div
+                v-else-if="
+                    esRolCliente() &&
+                    filtrados.length === 0 &&
+                    !loading &&
+                    !error &&
+                    tutoriales.length > 0
+                "
+                class="text-center py-20"
+            >
+                <div class="text-6xl mb-4">🔒</div>
+                <h3 class="text-xl font-semibold text-gray-800">
+                    Contenido exclusivo para We Collab
+                </h3>
+                <p class="text-gray-500 mt-2">
+                    Los materiales que buscas son parte del ecosistema interno.
+                </p>
+                <p class="text-sm text-gray-400 mt-4">
+                    Tu rol: {{ getUserRole() }}
+                </p>
             </div>
 
             <!-- VISTA GRID -->
@@ -229,16 +261,61 @@
                             class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-indigo-100 hover:-translate-y-1 ring-1 ring-indigo-200"
                         >
                             <div
-                                class="relative h-40 overflow-hidden bg-gray-100"
+                                class="relative h-48 overflow-hidden bg-gray-100"
                             >
+                                <!-- Thumbnail mejorado para documentos -->
                                 <img
-                                    :src="getThumbnail(recurso.url)"
+                                    v-if="esVideo(recurso.url)"
+                                    :src="getThumbnailVideo(recurso.url)"
                                     :alt="recurso.titulo"
                                     class="w-full h-full object-cover group-hover:scale-110 transition duration-500"
                                     @error="
-                                        $event.target.src = '/img/default.jpg'
+                                        $event.target.src =
+                                            getPlaceholderPorTipo(
+                                                recurso.tipo_material,
+                                            )
                                     "
                                 />
+                                <div
+                                    v-else
+                                    :class="
+                                        getPlaceholderBgClass(
+                                            recurso.tipo_material,
+                                        )
+                                    "
+                                    class="w-full h-full flex flex-col items-center justify-center group-hover:scale-110 transition duration-500"
+                                >
+                                    <span
+                                        class="text-6xl mb-3 drop-shadow-lg"
+                                        >{{
+                                            getIconoPorTipo(
+                                                recurso.tipo_material,
+                                            )
+                                        }}</span
+                                    >
+                                    <span
+                                        class="text-white text-base font-bold px-4 text-center uppercase tracking-wide"
+                                        >{{
+                                            getNombreTipo(recurso.tipo_material)
+                                        }}</span
+                                    >
+                                    <div class="mt-2 flex gap-1">
+                                        <span class="text-white/60 text-[10px]"
+                                            >●</span
+                                        >
+                                        <span class="text-white/60 text-[10px]"
+                                            >●</span
+                                        >
+                                        <span class="text-white/60 text-[10px]"
+                                            >●</span
+                                        >
+                                    </div>
+                                    <span
+                                        class="text-white/80 text-[11px] mt-2 line-clamp-1 max-w-[90%] font-medium"
+                                        >{{ recurso.titulo }}</span
+                                    >
+                                </div>
+
                                 <span
                                     class="absolute top-2 left-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] px-2 py-1 rounded-full z-20"
                                 >
@@ -246,56 +323,70 @@
                                 </span>
                                 <span
                                     :class="[
-                                        'absolute top-2 right-2 text-white text-[10px] px-2 py-1 rounded z-20',
+                                        'absolute top-2 right-2 text-white text-[10px] px-2 py-1 rounded-full z-20 font-semibold shadow-sm',
                                         getTipoBadgeClass(
                                             recurso.tipo_material,
                                         ),
                                     ]"
                                 >
+                                    {{ getIconoPorTipo(recurso.tipo_material) }}
                                     {{ recurso.tipo_material }}
                                 </span>
                             </div>
-                            <div class="p-3">
+                            <div class="p-4">
                                 <h3
-                                    class="text-sm font-semibold line-clamp-1 text-gray-800"
+                                    class="text-sm font-bold line-clamp-1 text-gray-800"
                                 >
                                     {{ recurso.titulo }}
                                 </h3>
                                 <p
-                                    class="text-xs text-gray-500 line-clamp-2 mt-1"
+                                    class="text-xs text-gray-500 line-clamp-2 mt-2 leading-relaxed"
                                 >
                                     {{
                                         recurso.descripcion || "Sin descripción"
                                     }}
                                 </p>
                                 <div
-                                    class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100"
+                                    class="flex items-center justify-between mt-4 pt-2 border-t border-gray-100"
                                 >
-                                    <span class="text-[10px] text-gray-400">
+                                    <span
+                                        class="text-[10px] text-gray-400 flex items-center gap-1"
+                                    >
+                                        <span>📅</span>
                                         {{
                                             new Date(
                                                 recurso.created_at,
                                             ).toLocaleDateString("es-ES")
                                         }}
                                     </span>
-                                    <span
+                                    <!-- <span
                                         v-if="recurso.alcance"
                                         :class="
                                             getAlcanceBadgeClass(
                                                 recurso.alcance,
                                             )
                                         "
-                                        class="text-[10px] px-2 py-0.5 rounded font-medium"
+                                        class="text-[10px] px-2 py-1 rounded-full font-medium"
                                     >
                                         {{ recurso.alcance }}
-                                    </span>
+                                    </span> -->
                                 </div>
-                                <div class="mt-3">
+                                <div class="mt-4">
                                     <button
                                         @click.stop="verVideo(recurso)"
-                                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all bg-indigo-600 hover:bg-indigo-700"
+                                        class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all transform hover:scale-105"
+                                        :class="
+                                            getBotonGradiente(
+                                                recurso.tipo_material,
+                                            )
+                                        "
                                     >
-                                        Ver contenido
+                                        <span>{{
+                                            esVideo(recurso.url)
+                                                ? "🎬 Ver video"
+                                                : "📄 Ver documento"
+                                        }}</span>
+                                        <span>→</span>
                                     </button>
                                 </div>
                             </div>
@@ -362,17 +453,64 @@
                                 class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 hover:-translate-y-1"
                             >
                                 <div
-                                    class="relative h-40 overflow-hidden bg-gray-100"
+                                    class="relative h-48 overflow-hidden bg-gray-100"
                                 >
                                     <img
-                                        :src="getThumbnail(recurso.url)"
+                                        v-if="esVideo(recurso.url)"
+                                        :src="getThumbnailVideo(recurso.url)"
                                         :alt="recurso.titulo"
                                         class="w-full h-full object-cover group-hover:scale-110 transition duration-500"
                                         @error="
                                             $event.target.src =
-                                                '/img/default.jpg'
+                                                getPlaceholderPorTipo(
+                                                    recurso.tipo_material,
+                                                )
                                         "
                                     />
+                                    <div
+                                        v-else
+                                        :class="
+                                            getPlaceholderBgClass(
+                                                recurso.tipo_material,
+                                            )
+                                        "
+                                        class="w-full h-full flex flex-col items-center justify-center group-hover:scale-110 transition duration-500"
+                                    >
+                                        <span
+                                            class="text-6xl mb-3 drop-shadow-lg"
+                                            >{{
+                                                getIconoPorTipo(
+                                                    recurso.tipo_material,
+                                                )
+                                            }}</span
+                                        >
+                                        <span
+                                            class="text-white text-base font-bold px-4 text-center uppercase tracking-wide"
+                                            >{{
+                                                getNombreTipo(
+                                                    recurso.tipo_material,
+                                                )
+                                            }}</span
+                                        >
+                                        <div class="mt-2 flex gap-1">
+                                            <span
+                                                class="text-white/60 text-[10px]"
+                                                >●</span
+                                            >
+                                            <span
+                                                class="text-white/60 text-[10px]"
+                                                >●</span
+                                            >
+                                            <span
+                                                class="text-white/60 text-[10px]"
+                                                >●</span
+                                            >
+                                        </div>
+                                        <span
+                                            class="text-white/80 text-[11px] mt-2 line-clamp-1 max-w-[90%] font-medium"
+                                            >{{ recurso.titulo }}</span
+                                        >
+                                    </div>
 
                                     <div
                                         v-if="estaBloqueado(recurso)"
@@ -391,19 +529,24 @@
 
                                     <span
                                         :class="[
-                                            'absolute top-2 left-2 text-white text-[10px] px-2 py-1 rounded z-20',
+                                            'absolute top-2 left-2 text-white text-[10px] px-2 py-1 rounded-full z-20 font-semibold shadow-sm',
                                             getTipoBadgeClass(
                                                 recurso.tipo_material,
                                             ),
                                         ]"
                                     >
+                                        {{
+                                            getIconoPorTipo(
+                                                recurso.tipo_material,
+                                            )
+                                        }}
                                         {{ recurso.tipo_material }}
                                     </span>
                                 </div>
 
-                                <div class="p-3">
+                                <div class="p-4">
                                     <h3
-                                        class="text-sm font-semibold line-clamp-1"
+                                        class="text-sm font-bold line-clamp-1"
                                         :class="
                                             estaBloqueado(recurso)
                                                 ? 'text-gray-400'
@@ -413,7 +556,7 @@
                                         {{ recurso.titulo }}
                                     </h3>
                                     <p
-                                        class="text-xs text-gray-500 line-clamp-2 mt-1"
+                                        class="text-xs text-gray-500 line-clamp-2 mt-2 leading-relaxed"
                                     >
                                         {{
                                             recurso.descripcion ||
@@ -421,32 +564,49 @@
                                         }}
                                     </p>
                                     <div
-                                        class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100"
+                                        class="flex items-center justify-between mt-4 pt-2 border-t border-gray-100"
                                     >
-                                        <span class="text-[10px] text-gray-400">
+                                        <span
+                                            class="text-[10px] text-gray-400 flex items-center gap-1"
+                                        >
+                                            <span>📅</span>
                                             {{
                                                 new Date(
                                                     recurso.created_at,
                                                 ).toLocaleDateString("es-ES")
                                             }}
                                         </span>
+                                        <span
+                                            class="text-[10px] text-gray-400 flex items-center gap-1"
+                                        >
+                                            <span>👁️</span>
+                                            {{ recurso.visitas || 0 }} vistas
+                                        </span>
                                     </div>
 
-                                    <div class="mt-3">
+                                    <div class="mt-4">
                                         <button
                                             @click.stop="verVideo(recurso)"
-                                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all"
+                                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all transform hover:scale-105"
                                             :class="
                                                 estaBloqueado(recurso)
                                                     ? 'bg-gray-400 cursor-not-allowed'
-                                                    : 'bg-indigo-600 hover:bg-indigo-700'
+                                                    : getBotonGradiente(
+                                                          recurso.tipo_material,
+                                                      )
                                             "
+                                            :disabled="estaBloqueado(recurso)"
                                         >
-                                            {{
+                                            <span>{{
                                                 estaBloqueado(recurso)
-                                                    ? "Sin acceso"
-                                                    : "Ver contenido"
-                                            }}
+                                                    ? "🔒 Sin acceso"
+                                                    : esVideo(recurso.url)
+                                                      ? "🎬 Ver video"
+                                                      : "📄 Ver documento"
+                                            }}</span>
+                                            <span v-if="!estaBloqueado(recurso)"
+                                                >→</span
+                                            >
                                         </button>
                                     </div>
                                 </div>
@@ -489,21 +649,39 @@
                         <div
                             v-for="recurso in materialesAccesibles.slice(0, 10)"
                             :key="recurso.id"
-                            class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all border border-indigo-100"
+                            class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all border border-indigo-100 hover:border-indigo-200"
                         >
-                            <div class="flex items-center gap-4 p-4">
+                            <div class="flex items-center gap-5 p-4">
                                 <div
-                                    class="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100"
+                                    class="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0"
                                 >
                                     <img
-                                        :src="getThumbnail(recurso.url)"
+                                        v-if="esVideo(recurso.url)"
+                                        :src="getThumbnailVideo(recurso.url)"
                                         :alt="recurso.titulo"
                                         class="w-full h-full object-cover"
                                         @error="
                                             $event.target.src =
-                                                '/img/default.jpg'
+                                                getPlaceholderPorTipo(
+                                                    recurso.tipo_material,
+                                                )
                                         "
                                     />
+                                    <div
+                                        v-else
+                                        :class="
+                                            getPlaceholderBgClass(
+                                                recurso.tipo_material,
+                                            )
+                                        "
+                                        class="w-full h-full flex items-center justify-center"
+                                    >
+                                        <span class="text-2xl">{{
+                                            getIconoPorTipo(
+                                                recurso.tipo_material,
+                                            )
+                                        }}</span>
+                                    </div>
                                     <span
                                         class="absolute top-1 left-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[8px] px-1 py-0.5 rounded-full"
                                     >
@@ -516,18 +694,23 @@
                                         class="flex items-center gap-2 flex-wrap"
                                     >
                                         <h3
-                                            class="text-sm font-semibold text-gray-800"
+                                            class="text-sm font-bold text-gray-800"
                                         >
                                             {{ recurso.titulo }}
                                         </h3>
                                         <span
                                             :class="[
-                                                'text-[10px] px-2 py-0.5 rounded',
+                                                'text-[10px] px-2 py-0.5 rounded-full font-medium',
                                                 getTipoBadgeClass(
                                                     recurso.tipo_material,
                                                 ),
                                             ]"
                                         >
+                                            {{
+                                                getIconoPorTipo(
+                                                    recurso.tipo_material,
+                                                )
+                                            }}
                                             {{ recurso.tipo_material }}
                                         </span>
                                     </div>
@@ -540,13 +723,21 @@
                                         }}
                                     </p>
                                     <div
-                                        class="flex items-center gap-3 mt-2 text-[10px] text-gray-400"
+                                        class="flex items-center gap-4 mt-2 text-[10px] text-gray-400"
                                     >
-                                        <span>{{
-                                            new Date(
-                                                recurso.created_at,
-                                            ).toLocaleDateString("es-ES")
-                                        }}</span>
+                                        <span class="flex items-center gap-1"
+                                            >📅
+                                            {{
+                                                new Date(
+                                                    recurso.created_at,
+                                                ).toLocaleDateString("es-ES")
+                                            }}</span
+                                        >
+                                        <span class="flex items-center gap-1"
+                                            >👁️
+                                            {{ recurso.visitas || 0 }}
+                                            vistas</span
+                                        >
                                         <span class="text-green-600"
                                             >✅ Accesible</span
                                         >
@@ -561,15 +752,24 @@
                                                 recurso.alcance,
                                             )
                                         "
-                                        class="text-[10px] px-2 py-0.5 rounded font-medium"
+                                        class="text-[10px] px-2 py-1 rounded-full font-medium"
                                     >
                                         {{ recurso.alcance }}
                                     </span>
                                     <button
                                         @click.stop="verVideo(recurso)"
-                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all bg-indigo-600 hover:bg-indigo-700"
+                                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all"
+                                        :class="
+                                            getBotonGradiente(
+                                                recurso.tipo_material,
+                                            )
+                                        "
                                     >
-                                        Ver
+                                        {{
+                                            esVideo(recurso.url)
+                                                ? "🎬 Ver video"
+                                                : "📄 Abrir documento"
+                                        }}
                                     </button>
                                 </div>
                             </div>
@@ -631,26 +831,46 @@
                             <div
                                 v-for="recurso in subcategoria.items"
                                 :key="recurso.id"
-                                class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border border-gray-100"
+                                class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border border-gray-100 hover:border-indigo-200"
                             >
-                                <div class="flex items-center gap-4 p-4">
+                                <div class="flex items-center gap-5 p-4">
                                     <div
-                                        class="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100"
+                                        class="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0"
                                     >
                                         <img
-                                            :src="getThumbnail(recurso.url)"
+                                            v-if="esVideo(recurso.url)"
+                                            :src="
+                                                getThumbnailVideo(recurso.url)
+                                            "
                                             :alt="recurso.titulo"
                                             class="w-full h-full object-cover"
                                             @error="
                                                 $event.target.src =
-                                                    '/img/default.jpg'
+                                                    getPlaceholderPorTipo(
+                                                        recurso.tipo_material,
+                                                    )
                                             "
                                         />
                                         <div
-                                            v-if="estaBloqueado(recurso)"
-                                            class="absolute inset-0 bg-black/60 flex items-center justify-center"
+                                            v-else
+                                            :class="
+                                                getPlaceholderBgClass(
+                                                    recurso.tipo_material,
+                                                )
+                                            "
+                                            class="w-full h-full flex items-center justify-center"
                                         >
-                                            <span class="text-white text-lg"
+                                            <span class="text-2xl">{{
+                                                getIconoPorTipo(
+                                                    recurso.tipo_material,
+                                                )
+                                            }}</span>
+                                        </div>
+                                        <div
+                                            v-if="estaBloqueado(recurso)"
+                                            class="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg"
+                                        >
+                                            <span class="text-white text-sm"
                                                 >🔒</span
                                             >
                                         </div>
@@ -661,7 +881,7 @@
                                             class="flex items-center gap-2 flex-wrap"
                                         >
                                             <h3
-                                                class="text-sm font-semibold"
+                                                class="text-sm font-bold"
                                                 :class="
                                                     estaBloqueado(recurso)
                                                         ? 'text-gray-400'
@@ -672,12 +892,17 @@
                                             </h3>
                                             <span
                                                 :class="[
-                                                    'text-[10px] px-2 py-0.5 rounded',
+                                                    'text-[10px] px-2 py-0.5 rounded-full font-medium',
                                                     getTipoBadgeClass(
                                                         recurso.tipo_material,
                                                     ),
                                                 ]"
                                             >
+                                                {{
+                                                    getIconoPorTipo(
+                                                        recurso.tipo_material,
+                                                    )
+                                                }}
                                                 {{ recurso.tipo_material }}
                                             </span>
                                         </div>
@@ -690,21 +915,35 @@
                                             }}
                                         </p>
                                         <div
-                                            class="flex items-center gap-3 mt-2 text-[10px] text-gray-400"
+                                            class="flex items-center gap-4 mt-2 text-[10px] text-gray-400"
                                         >
-                                            <span>{{
-                                                new Date(
-                                                    recurso.created_at,
-                                                ).toLocaleDateString("es-ES")
-                                            }}</span>
+                                            <span
+                                                class="flex items-center gap-1"
+                                                >📅
+                                                {{
+                                                    new Date(
+                                                        recurso.created_at,
+                                                    ).toLocaleDateString(
+                                                        "es-ES",
+                                                    )
+                                                }}</span
+                                            >
+                                            <span
+                                                class="flex items-center gap-1"
+                                                >👁️
+                                                {{ recurso.visitas || 0 }}
+                                                vistas</span
+                                            >
                                             <span
                                                 v-if="estaBloqueado(recurso)"
-                                                class="text-amber-600"
+                                                class="text-amber-600 flex items-center gap-1"
                                             >
                                                 🔒 Requiere:
                                                 {{ recurso.alcance }}
                                             </span>
-                                            <span v-else class="text-green-600"
+                                            <span
+                                                v-else
+                                                class="text-green-600 flex items-center gap-1"
                                                 >✅ Accesible</span
                                             >
                                         </div>
@@ -718,23 +957,28 @@
                                                     recurso.alcance,
                                                 )
                                             "
-                                            class="text-[10px] px-2 py-0.5 rounded font-medium"
+                                            class="text-[10px] px-2 py-1 rounded-full font-medium"
                                         >
                                             {{ recurso.alcance }}
                                         </span>
                                         <button
                                             @click.stop="verVideo(recurso)"
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all"
+                                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all"
                                             :class="
                                                 estaBloqueado(recurso)
                                                     ? 'bg-gray-400 cursor-not-allowed'
-                                                    : 'bg-indigo-600 hover:bg-indigo-700'
+                                                    : getBotonGradiente(
+                                                          recurso.tipo_material,
+                                                      )
                                             "
+                                            :disabled="estaBloqueado(recurso)"
                                         >
                                             {{
                                                 estaBloqueado(recurso)
                                                     ? "🔒 Sin acceso"
-                                                    : "Ver"
+                                                    : esVideo(recurso.url)
+                                                      ? "🎬 Ver video"
+                                                      : "📄 Abrir documento"
                                             }}
                                         </button>
                                     </div>
@@ -821,30 +1065,48 @@ const toastType = ref("success");
 const categoriaSeleccionada = ref("");
 const subcategoriaSeleccionada = ref("");
 
-// 🔷 TIPOS DE MATERIAL
+// 🔷 TIPOS DE MATERIAL CON ICONOS MEJORADOS
 const tipos = [
     { label: "Todo", value: "todo", icon: "📚" },
     { label: "Video", value: "video", icon: "🎬" },
-    { label: "Manual", value: "manual", icon: "📖" },
-    { label: "Guía", value: "guia", icon: "🧭" },
-    { label: "Infografia", value: "triptico", icon: "🎨" },
+    { label: "Manual", value: "manual", icon: "📘" },
+    { label: "Guía", value: "guia", icon: "🗺️" },
+    { label: "Infografía", value: "triptico", icon: "📊" },
 ];
 
-// 🎯 JERARQUÍA COMPLETA DE ROLES
+// ============================================
+// 🎯 ECOSISTEMAS Y JERARQUÍA DE ROLES
+// ============================================
+
+const ROLES_WE_COLLAB = [
+    "Superadmin we collab",
+    "Admin we collab",
+    "Soporte we collab",
+    "Usuario we collab",
+];
+
+const ROLES_CLIENTE = [
+    "Suscriptor SLC",
+    "Usuario Admin SLC",
+    "Usuario Premium SLC",
+    "Usuario Público",
+    "Prospecto",
+    "Invitado",
+];
+
 const JERARQUIA_ROLES = {
-    "Superadmin we collab": 10,
-    "Admin we collab": 9,
-    "Soporte we collab": 8,
-    "Usuario we collab": 7,
-    "Suscriptor SLC": 6,
-    "Usuario Admin SLC": 5,
-    "Usuario Premium SLC": 4,
-    "Usuario Público": 3,
-    Prospecto: 2,
-    Invitado: 1,
+    "Superadmin we collab": 100,
+    "Admin we collab": 90,
+    "Soporte we collab": 80,
+    "Usuario we collab": 70,
+    "Suscriptor SLC": 60,
+    "Usuario Admin SLC": 50,
+    "Usuario Premium SLC": 40,
+    "Usuario Público": 30,
+    Prospecto: 20,
+    Invitado: 10,
 };
 
-// 🔷 Mapeo de roles
 const MAPEO_ROLES = {
     "Superadmin we collab": "Superadmin we collab",
     "Admin we collab": "Admin we collab",
@@ -857,13 +1119,14 @@ const MAPEO_ROLES = {
     "Usuario Público": "Usuario Público",
     "Usuario Publico": "Usuario Público",
     Prospecto: "Prospecto",
+    Invitado: "Invitado",
     "Cliente Admin": "Usuario Admin SLC",
     "Cliente Premium": "Usuario Premium SLC",
 };
 
-const ALCANCES_VALIDOS = Object.keys(JERARQUIA_ROLES).filter(
-    (r) => r !== "Invitado",
-);
+const ALCANCES_WE_COLLAB = [...ROLES_WE_COLLAB];
+const ALCANCES_CLIENTE = [...ROLES_CLIENTE.filter((r) => r !== "Invitado")];
+const ALCANCES_VALIDOS = [...ALCANCES_WE_COLLAB, ...ALCANCES_CLIENTE];
 
 const normalize = (str) => str?.toString().toLowerCase().trim() || "";
 
@@ -888,22 +1151,68 @@ const getUserRole = () => {
 
 const getRolLevel = (rolNombre) => JERARQUIA_ROLES[rolNombre] || 0;
 
+const esRolWeCollab = () => ROLES_WE_COLLAB.includes(getUserRole());
+const esRolCliente = () => ROLES_CLIENTE.includes(getUserRole());
+
+const getEcosistema = () => {
+    if (esRolWeCollab()) return "we_collab";
+    if (esRolCliente()) return "cliente";
+    return "desconocido";
+};
+
+const getAlcanceEcosistema = (alcance) => {
+    if (ALCANCES_WE_COLLAB.includes(alcance)) return "we_collab";
+    if (ALCANCES_CLIENTE.includes(alcance)) return "cliente";
+    return "publico";
+};
+
+const debeOcultarCompletamente = (tutorial) => {
+    const alcanceTutorial = tutorial.alcance;
+    if (esRolCliente()) {
+        if (!alcanceTutorial || alcanceTutorial.trim() === "") return false;
+        const alcanceNorm = MAPEO_ROLES[alcanceTutorial] || alcanceTutorial;
+        const ecosistemaAlcance = getAlcanceEcosistema(alcanceNorm);
+        return ecosistemaAlcance === "we_collab";
+    }
+    return false;
+};
+
 const tieneAcceso = (tutorial) => {
     const rolUsuario = getUserRole();
     let alcanceTutorial = tutorial.alcance;
+
     if (!alcanceTutorial || alcanceTutorial.trim() === "") return true;
     alcanceTutorial = MAPEO_ROLES[alcanceTutorial] || alcanceTutorial;
     if (!ALCANCES_VALIDOS.includes(alcanceTutorial)) return false;
+
+    const ecosistemaUsuario = getEcosistema();
+    const ecosistemaAlcance = getAlcanceEcosistema(alcanceTutorial);
+
+    if (ecosistemaUsuario === "cliente" && ecosistemaAlcance === "we_collab") {
+        return false;
+    }
+
     if (rolUsuario === "Superadmin we collab") return true;
     if (rolUsuario === "Admin we collab") return true;
+
     return getRolLevel(rolUsuario) >= getRolLevel(alcanceTutorial);
 };
 
-const estaBloqueado = (tutorial) => !tieneAcceso(tutorial);
+const estaBloqueado = (tutorial) => {
+    const alcanceTutorial = tutorial.alcance;
+    if (!alcanceTutorial || alcanceTutorial.trim() === "") return false;
+    const alcanceNorm = MAPEO_ROLES[alcanceTutorial] || alcanceTutorial;
+    const ecosistemaUsuario = getEcosistema();
+    const ecosistemaAlcance = getAlcanceEcosistema(alcanceNorm);
+    if (ecosistemaUsuario === "cliente" && ecosistemaAlcance === "we_collab") {
+        return true;
+    }
+    return !tieneAcceso(tutorial);
+};
 
-// 🔷 FILTRADO PRINCIPAL
 const filtrados = computed(() => {
     return tutoriales.value.filter((t) => {
+        if (debeOcultarCompletamente(t)) return false;
         if (t.estado !== "activo") return false;
         const tipoOK =
             tipoSeleccionado.value === "todo" ||
@@ -918,15 +1227,12 @@ const filtrados = computed(() => {
     });
 });
 
-// 🌟 MATERIALES ACCESIBLES PARA DESTACADOS
 const materialesAccesibles = computed(() => {
     return filtrados.value.filter((t) => tieneAcceso(t));
 });
 
-// 🔷 MATERIALES POR CATEGORÍA Y SUBCATEGORÍA
 const materialesPorCategoria = computed(() => {
     const resultado = {};
-
     let materialesFiltrados = filtrados.value;
 
     if (categoriaSeleccionada.value) {
@@ -934,7 +1240,6 @@ const materialesPorCategoria = computed(() => {
             (t) => t.categoria_id == categoriaSeleccionada.value,
         );
     }
-
     if (subcategoriaSeleccionada.value) {
         materialesFiltrados = materialesFiltrados.filter(
             (t) => t.subcategoria_id == subcategoriaSeleccionada.value,
@@ -956,7 +1261,6 @@ const materialesPorCategoria = computed(() => {
                 subcategorias: {},
             };
         }
-
         if (!resultado[categoriaId].subcategorias[subcategoriaId]) {
             resultado[categoriaId].subcategorias[subcategoriaId] = {
                 id: subcategoriaId,
@@ -964,7 +1268,6 @@ const materialesPorCategoria = computed(() => {
                 items: [],
             };
         }
-
         resultado[categoriaId].subcategorias[subcategoriaId].items.push(
             tutorial,
         );
@@ -993,13 +1296,106 @@ const subcategoriasFiltradas = computed(() => {
     );
 });
 
-// 🔷 Cargar datos
+const stats = computed(() => ({
+    total: tutoriales.value.length,
+    visibles: filtrados.value.length,
+    accesibles: filtrados.value.filter((t) => tieneAcceso(t)).length,
+    restringidos: filtrados.value.filter((t) => estaBloqueado(t)).length,
+}));
+
+// ============================================
+// 🖼️ FUNCIONES MEJORADAS PARA THUMBNAILS Y PLACEHOLDERS
+// ============================================
+
+const getIconoPorTipo = (tipo) => {
+    const iconos = {
+        video: "🎬",
+        manual: "📘",
+        guia: "🗺️",
+        triptico: "📊",
+        default: "📄",
+    };
+    return iconos[tipo] || iconos.default;
+};
+
+const getNombreTipo = (tipo) => {
+    const nombres = {
+        video: "VIDEO TUTORIAL",
+        manual: "MANUAL TÉCNICO",
+        guia: "GUÍA PRÁCTICA",
+        triptico: "INFOGRAFÍA",
+        default: "DOCUMENTO",
+    };
+    return nombres[tipo] || nombres.default;
+};
+
+const getBotonGradiente = (tipo) => {
+    const gradientes = {
+        video: "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700",
+        manual: "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700",
+        guia: "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700",
+        triptico:
+            "bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700",
+        default:
+            "bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700",
+    };
+    return gradientes[tipo] || gradientes.default;
+};
+
+const esVideo = (url) => {
+    if (!url) return false;
+    return url.includes("youtube.com") || url.includes("youtu.be");
+};
+
+const getThumbnailVideo = (url) => {
+    if (!url) return null;
+    let videoId = null;
+    if (url.includes("youtu.be/")) {
+        videoId = url.split("youtu.be/")[1]?.split(/[?&#]/)[0];
+    } else if (url.includes("v=")) {
+        videoId = url.split("v=")[1]?.split(/[?&#]/)[0];
+    } else if (url.includes("/embed/")) {
+        videoId = url.split("/embed/")[1]?.split(/[?&#]/)[0];
+    }
+    if (videoId && videoId.length === 11) {
+        return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    }
+    return null;
+};
+
+const getPlaceholderBgClass = (tipo) => {
+    const classes = {
+        video: "bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700",
+        manual: "bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700",
+        guia: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700",
+        triptico:
+            "bg-gradient-to-br from-violet-500 via-violet-600 to-violet-700",
+    };
+    return (
+        classes[tipo] ||
+        "bg-gradient-to-br from-gray-500 via-gray-600 to-gray-700"
+    );
+};
+
+const getPlaceholderPorTipo = (tipo) => {
+    const placeholders = {
+        video: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23ef4444'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E🎬%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EVIDEO%3C/text%3E%3C/svg%3E",
+        manual: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%233b82f6'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E📘%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EMANUAL%3C/text%3E%3C/svg%3E",
+        guia: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%2310b981'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E🗺️%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EGUÍA%3C/text%3E%3C/svg%3E",
+        triptico:
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%238b5cf6'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E📊%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EINFOGRAFÍA%3C/text%3E%3C/svg%3E",
+    };
+    return placeholders[tipo] || placeholders.manual;
+};
+
+// ============================================
+// CARGA DE DATOS
+// ============================================
+
 const cargarCategorias = async () => {
     try {
         const res = await axios.get("/categorias/lista");
-        if (res.data?.success) {
-            categorias.value = res.data.data;
-        }
+        if (res.data?.success) categorias.value = res.data.data;
     } catch (err) {
         console.error("Error cargando categorías:", err);
     }
@@ -1008,13 +1404,10 @@ const cargarCategorias = async () => {
 const cargarSubcategorias = async () => {
     try {
         const params = {};
-        if (categoriaSeleccionada.value) {
+        if (categoriaSeleccionada.value)
             params.categorias_id = categoriaSeleccionada.value;
-        }
         const res = await axios.get("/subcategorias/all", { params });
-        if (res.data?.success) {
-            subcategorias.value = res.data.data;
-        }
+        if (res.data?.success) subcategorias.value = res.data.data;
     } catch (err) {
         console.error("Error cargando subcategorías:", err);
     }
@@ -1079,30 +1472,30 @@ watch(categoriaSeleccionada, () => {
 const tipoConfig = {
     video: {
         icon: "🎬",
-        gradient: "from-rose-500 via-pink-500 to-rose-600",
+        gradient: "from-rose-500 to-rose-600",
         badge: "bg-rose-100 text-rose-700",
         route: "videos",
     },
     manual: {
-        icon: "📚",
-        gradient: "from-blue-500 via-cyan-500 to-blue-600",
+        icon: "📘",
+        gradient: "from-blue-500 to-blue-600",
         badge: "bg-blue-100 text-blue-700",
         route: "manuales",
     },
     guia: {
-        icon: "🧭",
-        gradient: "from-emerald-500 via-teal-500 to-emerald-600",
+        icon: "🗺️",
+        gradient: "from-emerald-500 to-emerald-600",
         badge: "bg-emerald-100 text-emerald-700",
         route: "guias",
     },
     triptico: {
-        icon: "🎨",
-        gradient: "from-violet-500 via-purple-500 to-violet-600",
+        icon: "📊",
+        gradient: "from-violet-500 to-violet-600",
         badge: "bg-violet-100 text-violet-700",
         route: "tripticos",
     },
     default: {
-        icon: "📦",
+        icon: "📄",
         gradient: "from-gray-500 to-gray-600",
         badge: "bg-gray-100 text-gray-700",
         route: "todos",
@@ -1110,34 +1503,6 @@ const tipoConfig = {
 };
 
 const getTipoConfig = (tipo) => tipoConfig[tipo] || tipoConfig.default;
-
-onMounted(() => {
-    cargarDatosIniciales();
-    window.addEventListener("scroll", () => {});
-});
-
-const stats = computed(() => ({
-    total: tutoriales.value.length,
-    visibles: filtrados.value.length,
-    accesibles: filtrados.value.filter((t) => tieneAcceso(t)).length,
-    restringidos: filtrados.value.filter((t) => estaBloqueado(t)).length,
-}));
-
-const getThumbnail = (url) => {
-    if (!url) return "/img/default.jpg";
-    if (url.includes("youtube.com") || url.includes("youtu.be")) {
-        let videoId = null;
-        if (url.includes("youtu.be/"))
-            videoId = url.split("youtu.be/")[1]?.split(/[?&#]/)[0];
-        else if (url.includes("v="))
-            videoId = url.split("v=")[1]?.split(/[?&#]/)[0];
-        else if (url.includes("/embed/"))
-            videoId = url.split("/embed/")[1]?.split(/[?&#]/)[0];
-        if (videoId && videoId.length === 11)
-            return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    }
-    return "/img/default.jpg";
-};
 
 const getAlcanceBadgeClass = (alcance) => {
     let alcanceNorm = MAPEO_ROLES[alcance] || alcance;
@@ -1195,6 +1560,10 @@ const resetFiltros = () => {
     subcategoriaSeleccionada.value = "";
     mostrarNotificacion("Filtros limpiados", "success");
 };
+
+onMounted(() => {
+    cargarDatosIniciales();
+});
 </script>
 
 <style scoped>

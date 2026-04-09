@@ -1553,6 +1553,7 @@ onMounted(async () => {
                                 </div>
 
                                 <!-- Términos -->
+                                <!-- Aviso de Privacidad -->
                                 <section
                                     v-if="
                                         $page.props.jetstream
@@ -1560,12 +1561,13 @@ onMounted(async () => {
                                     "
                                 >
                                     <div
-                                        class="p-6 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 rounded-3xl border-2 border-amber-200"
-                                        :class="{
-                                            'border-red-300 bg-red-50/50':
-                                                form.errors.terms ||
-                                                stepErrors.terms,
-                                        }"
+                                        class="p-6 rounded-3xl border-2"
+                                        :class="[
+                                            form.errors.terms ||
+                                            stepErrors.terms
+                                                ? 'border-red-300 bg-red-50'
+                                                : 'border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50',
+                                        ]"
                                     >
                                         <label
                                             class="flex items-start gap-4 cursor-pointer"
@@ -1576,12 +1578,7 @@ onMounted(async () => {
                                                 v-model:checked="form.terms"
                                                 name="terms"
                                                 required
-                                                class="mt-1 text-amber-600 focus:ring-amber-500 rounded-xl w-5 h-5"
-                                                :class="{
-                                                    'ring-4 ring-red-200':
-                                                        form.errors.terms ||
-                                                        stepErrors.terms,
-                                                }"
+                                                class="mt-1 w-5 h-5 rounded-xl"
                                                 :aria-invalid="
                                                     !!(
                                                         form.errors.terms ||
@@ -1589,25 +1586,21 @@ onMounted(async () => {
                                                     )
                                                 "
                                             />
-                                            <span class="text-sm text-gray-700">
-                                                Acepto los
-                                                <a
-                                                    :href="route('terms.show')"
-                                                    target="_blank"
-                                                    class="font-bold text-amber-700 underline"
-                                                >
-                                                    Términos
-                                                </a>
-                                                y la
+
+                                            <span
+                                                class="text-sm text-gray-700 leading-6"
+                                            >
+                                                Acepto
                                                 <a
                                                     :href="route('policy.show')"
                                                     target="_blank"
-                                                    class="font-bold text-amber-700 underline"
+                                                    class="font-semibold text-amber-700 underline hover:text-amber-800"
                                                 >
-                                                    Política de Privacidad
-                                                </a>
+                                                    Aviso de Privacidad </a
+                                                >.
                                             </span>
                                         </label>
+
                                         <p
                                             v-if="stepErrors.terms"
                                             class="text-sm text-red-600 mt-3"
@@ -1615,17 +1608,17 @@ onMounted(async () => {
                                         >
                                             {{ stepErrors.terms }}
                                         </p>
+
                                         <InputError
                                             v-else
                                             class="mt-3"
                                             :message="form.errors.terms"
-                                            role="alert"
                                         />
                                     </div>
                                 </section>
 
                                 <!-- Dirección (Disabled) -->
-                                <section class="space-y-4 opacity-60">
+                                <!-- <section class="space-y-4 opacity-60">
                                     <h3 class="text-sm font-bold text-gray-500">
                                         Dirección
                                         <span
@@ -1649,7 +1642,7 @@ onMounted(async () => {
                                             <option>Activo</option>
                                         </select>
                                     </div>
-                                </section>
+                                </section> -->
                             </div>
                         </Transition>
 
