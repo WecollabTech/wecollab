@@ -245,7 +245,7 @@ const clearPhotoFileInput = () => {
                 :class="{ 'opacity-25': form.processing }"
                 :disabled="form.processing"
             >
-                Save
+                Guardar
             </PrimaryButton>
         </template>
     </FormSection>
