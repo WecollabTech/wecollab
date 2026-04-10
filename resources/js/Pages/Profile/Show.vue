@@ -1,4 +1,5 @@
 <script setup>
+import { usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import DeleteUserForm from "@/Pages/Profile/Partials/DeleteUserForm.vue";
 import LogoutOtherBrowserSessionsForm from "@/Pages/Profile/Partials/LogoutOtherBrowserSessionsForm.vue";
@@ -7,20 +8,25 @@ import TwoFactorAuthenticationForm from "@/Pages/Profile/Partials/TwoFactorAuthe
 import UpdatePasswordForm from "@/Pages/Profile/Partials/UpdatePasswordForm.vue";
 import UpdateProfileInformationForm from "@/Pages/Profile/Partials/UpdateProfileInformationForm.vue";
 
+const page = usePage();
+
+// Obtener el usuario de auth en lugar de props
+const user = page.props.auth.user;
+
 // Define los props que recibe el componente
 defineProps({
     confirmsTwoFactorAuthentication: Boolean,
     sessions: Array,
-    user: Object, // Añade el prop user
+    // Ya no necesitas user aquí porque lo tomas de auth
 });
+
+// 🔍 DEBUG
+console.log("Usuario desde auth.user:", user);
 </script>
 
 <template>
     <AppLayout title="Perfil">
-        <template #header>
-            Perfil
-            <!-- El título heredará los estilos del <h2> en AppLayout -->
-        </template>
+        <template #header> Perfil </template>
 
         <div>
             <div class="max-w-7xl mx-auto py-10 sm:px-6 lg:px-8">

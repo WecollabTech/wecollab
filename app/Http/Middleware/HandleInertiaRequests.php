@@ -24,6 +24,7 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'apellido' => $user->apellido ?? 'NO EXISTE EL CAMPO apellido',
                     'role' => $user->role?->only(['id', 'nombre', 'descripcion', 'estado']),
                     'permissions' => $user->getPermissions(),
                     'can' => $this->getUserAbilities($user),
