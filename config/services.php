@@ -14,6 +14,18 @@ return [
     |
     */
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bitrix24 Configuration
+    |--------------------------------------------------------------------------
+    */
+    'bitrix24' => [
+        'webhook_url' => env('BITRIX_BASE'), // Usando tu variable del .env
+    ],
+
+
+
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
     ],
