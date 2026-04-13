@@ -9,7 +9,9 @@ class BitrixService
 {
     protected $baseUrl;
 
-    // 🗂️ MAPEO DE ROLES
+    // Categoría de negociación SLC
+    protected const DEAL_CATEGORY_ID = 69;
+
     protected const ROLE_MAPPING = [
         'superadmin' => 5363,
         'admin' => 5365,
@@ -71,19 +73,24 @@ class BitrixService
             }
 
             if ($contactId) {
-                $existingDeal = $this->findDealByContactId($contactId);
+                // 🔍 Buscar negociación SOLO en categoría 69
+                $existingDeal = $this->findDealByContactIdAndCategory($contactId, self::DEAL_CATEGORY_ID);
 
                 if (!$existingDeal) {
+                    // ✅ No existe negociación en categoría 69 → Crear nueva
                     $this->crearDeal($user, $contactId, $roleName, $roleBitrixId);
-                    Log::info('➕ Negociación creada', [
-                        'user_id' => $user->id,
-                        'contact_id' => $contactId
-                    ]);
-                } else {
-                    Log::info('🔄 Negociación ya existe', [
+                    Log::info('➕ Negociación creada en categoría 69', [
                         'user_id' => $user->id,
                         'contact_id' => $contactId,
-                        'deal_id' => $existingDeal['id']
+                        'category_id' => self::DEAL_CATEGORY_ID
+                    ]);
+                } else {
+                    // ✅ Ya existe negociación en categoría 69 → Reutilizar
+                    Log::info('🔄 Negociación ya existe en categoría 69 - Reutilizando', [
+                        'user_id' => $user->id,
+                        'contact_id' => $contactId,
+                        'deal_id' => $existingDeal['id'],
+                        'category_id' => self::DEAL_CATEGORY_ID
                     ]);
                 }
             }
@@ -104,6 +111,101 @@ class BitrixService
             ]);
         }
     }
+
+    /**
+     * 🔍 Busca negociación por contacto y categoría ESPECÍFICA
+     */
+    private function findDealByContactIdAndCategory(int $contactId, int $categoryId): ?array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->get($this->baseUrl . 'crm.deal.list.json', [
+                    'filter' => [
+                        'CONTACT_ID' => $contactId,
+                        'CATEGORY_ID' => $categoryId
+                    ],
+                    'select' => ['ID', 'TITLE', 'STAGE_ID', 'CATEGORY_ID']
+                ]);
+
+            if (!$response->successful()) {
+                Log::warning('Error al buscar negociación por categoría', [
+                    'contact_id' => $contactId,
+                    'category_id' => $categoryId,
+                    'status' => $response->status()
+                ]);
+                return null;
+            }
+
+            $data = $response->json();
+
+            if (isset($data['result']) && !empty($data['result'])) {
+                $deal = $data['result'][0];
+                Log::info('Negociación encontrada en categoría', [
+                    'contact_id' => $contactId,
+                    'deal_id' => $deal['ID'],
+                    'category_id' => $categoryId
+                ]);
+                return [
+                    'id' => (int) $deal['ID'],
+                    'title' => isset($deal['TITLE']) ? $deal['TITLE'] : null,
+                    'stage_id' => isset($deal['STAGE_ID']) ? $deal['STAGE_ID'] : null,
+                    'category_id' => isset($deal['CATEGORY_ID']) ? (int) $deal['CATEGORY_ID'] : null
+                ];
+            }
+
+            Log::info('No existe negociación en categoría', [
+                'contact_id' => $contactId,
+                'category_id' => $categoryId
+            ]);
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('Excepción al buscar negociación', [
+                'contact_id' => $contactId,
+                'category_id' => $categoryId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * ➕ Crea negociación en categoría 69
+     */
+    public function crearDeal($user, $contactId, string $roleName, int $roleBitrixId)
+    {
+        $telefonoBitrix = $this->formatearTelefonoParaBitrix($user);
+
+        $response = Http::post($this->baseUrl . 'crm.deal.add.json', [
+            'fields' => [
+                'TITLE' => 'Nuevo usuario: ' . $user->name . ' ' . $user->apellido,
+                'CONTACT_ID' => $contactId,
+                'CATEGORY_ID' => self::DEAL_CATEGORY_ID,
+                'STAGE_ID' => 'C69:NEW',
+                'COMMENTS' =>
+                    "📋 DATOS DEL USUARIO\n" .
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" .
+                    "📧 Email: {$user->email}\n" .
+                    "📱 Teléfono: {$telefonoBitrix}\n" .
+                    "🎭 Rol asignado: {$roleName} (ID Bitrix: {$roleBitrixId})\n" .
+                    "🏢 Company ID: " . ($user->company_id ? $user->company_id : 'Ninguno') . "\n" .
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" .
+                    "📅 Registro: " . now()->format('d/m/Y H:i:s'),
+            ]
+        ]);
+
+        $result = $response->json();
+        $dealId = isset($result['result']) ? $result['result'] : 'error';
+
+        Log::info('Negociación creada en categoría 69', [
+            'contact_id' => $contactId,
+            'deal_id' => $dealId,
+            'role_bitrix_id' => $roleBitrixId,
+            'category_id' => self::DEAL_CATEGORY_ID
+        ]);
+    }
+
+    // ========== RESTO DE MÉTODOS (sin cambios) ==========
 
     private function obtenerRoleIdPorNombre(string $roleName): int
     {
@@ -142,42 +244,30 @@ class BitrixService
         }
     }
 
-    /**
-     * 📱 Agrega teléfono SOLO si es diferente a los existentes
-     */
     private function agregarTelefonoSiNuevo(int $contactId, $user): void
     {
         $newPhone = $this->formatearTelefonoParaBitrix($user);
 
         if (empty($newPhone)) {
-            Log::info('📱 No hay teléfono para agregar', [
-                'contact_id' => $contactId
-            ]);
             return;
         }
 
         try {
-            // Obtener teléfonos actuales
             $response = Http::timeout(10)
                 ->get($this->baseUrl . 'crm.contact.get.json', [
                     'id' => $contactId
                 ]);
 
             if (!$response->successful()) {
-                Log::warning('No se pudo obtener teléfonos actuales', [
-                    'contact_id' => $contactId
-                ]);
                 return;
             }
 
             $data = $response->json();
             $currentPhones = isset($data['result']['PHONE']) ? $data['result']['PHONE'] : [];
 
-            // Limpiar nuevo teléfono
             $newPhoneClean = preg_replace('/\D/', '', $newPhone);
-
-            // Verificar si ya existe
             $phoneExists = false;
+
             foreach ($currentPhones as $phone) {
                 $existingPhoneClean = preg_replace('/\D/', '', $phone['VALUE']);
                 if ($existingPhoneClean === $newPhoneClean) {
@@ -186,39 +276,28 @@ class BitrixService
                 }
             }
 
-            // Si ya existe, NO hacer nada
             if ($phoneExists) {
                 Log::info('📱 Teléfono ya existe - No se agrega duplicado', [
                     'contact_id' => $contactId,
-                    'phone' => $newPhone,
-                    'existing_phones' => count($currentPhones)
+                    'phone' => $newPhone
                 ]);
                 return;
             }
 
-            // Agregar nuevo teléfono
             $currentPhones[] = [
                 'VALUE' => $newPhone,
                 'VALUE_TYPE' => 'WORK'
             ];
 
-            $updateResponse = Http::post($this->baseUrl . 'crm.contact.update.json', [
+            Http::post($this->baseUrl . 'crm.contact.update.json', [
                 'id' => $contactId,
                 'fields' => ['PHONE' => $currentPhones]
             ]);
 
-            if ($updateResponse->successful()) {
-                Log::info('📱 Nuevo teléfono agregado (era diferente)', [
-                    'contact_id' => $contactId,
-                    'new_phone' => $newPhone,
-                    'total_phones' => count($currentPhones)
-                ]);
-            } else {
-                Log::error('Error al agregar nuevo teléfono', [
-                    'contact_id' => $contactId,
-                    'phone' => $newPhone
-                ]);
-            }
+            Log::info('📱 Nuevo teléfono agregado', [
+                'contact_id' => $contactId,
+                'new_phone' => $newPhone
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Error al procesar teléfono', [
@@ -262,36 +341,6 @@ class BitrixService
         }
     }
 
-    private function findDealByContactId(int $contactId): ?array
-    {
-        try {
-            $response = Http::timeout(10)
-                ->get($this->baseUrl . 'crm.deal.list.json', [
-                    'filter' => ['CONTACT_ID' => $contactId],
-                    'select' => ['ID', 'TITLE']
-                ]);
-
-            if (!$response->successful()) {
-                return null;
-            }
-
-            $data = $response->json();
-
-            if (isset($data['result']) && !empty($data['result'])) {
-                $deal = $data['result'][0];
-                return [
-                    'id' => (int) $deal['ID'],
-                    'title' => isset($deal['TITLE']) ? $deal['TITLE'] : null
-                ];
-            }
-
-            return null;
-
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
     public function crearContacto($user, int $roleBitrixId)
     {
         $telefonoBitrix = $this->formatearTelefonoParaBitrix($user);
@@ -324,7 +373,7 @@ class BitrixService
         $contactId = isset($result['result']) ? $result['result'] : null;
 
         if ($contactId) {
-            Log::info('Contacto creado con rol', [
+            Log::info('Contacto creado', [
                 'contact_id' => $contactId,
                 'email' => $user->email,
                 'role_bitrix_id' => $roleBitrixId
@@ -332,36 +381,6 @@ class BitrixService
         }
 
         return $contactId;
-    }
-
-    public function crearDeal($user, $contactId, string $roleName, int $roleBitrixId)
-    {
-        $telefonoBitrix = $this->formatearTelefonoParaBitrix($user);
-
-        $response = Http::post($this->baseUrl . 'crm.deal.add.json', [
-            'fields' => [
-                'TITLE' => 'Nuevo usuario: ' . $user->name . ' ' . $user->apellido,
-                'CONTACT_ID' => $contactId,
-                'CATEGORY_ID' => 69,
-                'STAGE_ID' => 'C69:NEW',
-                'COMMENTS' =>
-                    "📋 DATOS DEL USUARIO\n" .
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" .
-                    "📧 Email: {$user->email}\n" .
-                    "📱 Teléfono: {$telefonoBitrix}\n" .
-                    "🎭 Rol asignado: {$roleName} (ID Bitrix: {$roleBitrixId})\n" .
-                    "🏢 Company ID: " . ($user->company_id ? $user->company_id : 'Ninguno') . "\n" .
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" .
-                    "📅 Registro: " . now()->format('d/m/Y H:i:s'),
-            ]
-        ]);
-
-        $result = $response->json();
-        Log::info('Negociación creada', [
-            'contact_id' => $contactId,
-            'role_bitrix_id' => $roleBitrixId,
-            'deal_id' => isset($result['result']) ? $result['result'] : 'error'
-        ]);
     }
 
     protected function formatearTelefonoParaBitrix($user): string

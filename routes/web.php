@@ -17,6 +17,7 @@ use Laravel\Jetstream\Http\Controllers\Inertia\TermsOfServiceController;
 
 // =========================================================================
 // RUTAS PÚBLICAS
+Route::get('/factura', fn() => Inertia::render('Factura/Factura'))->name('factura');
 // =========================================================================
 
 Route::get('/', function () {
