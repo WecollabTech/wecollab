@@ -224,3 +224,23 @@ Route::get('/terminos-y-condiciones', [TermsOfServiceController::class, 'show'])
 
 Route::get('/aviso-de-privacidad', [PrivacyPolicyController::class, 'show'])
     ->name('policy.show');
+
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('tipos-materiales')
+    ->group(function () {
+        Route::get('/', fn() => Inertia::render('TiposMateriales/Index'))->name('tipos-materiales.index');
+        Route::get('/create', fn() => Inertia::render('TiposMateriales/Create'))->name('tipos-materiales.create');
+        Route::get('/{id}', fn($id) => Inertia::render('TiposMateriales/Show', ['id' => $id]))->name('tipos-materiales.show');
+        Route::get('/{id}/edit', fn($id) => Inertia::render('TiposMateriales/Edit', ['id' => $id]))->name('tipos-materiales.edit');
+    });
+
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('formatos-materiales')
+    ->group(function () {
+        Route::get('/', fn() => Inertia::render('FormatosMateriales/Index'))->name('formatos-materiales.index');
+        Route::get('/create', fn() => Inertia::render('FormatosMateriales/Create'))->name('formatos-materiales.create');
+        Route::get('/{id}', fn($id) => Inertia::render('FormatosMateriales/Show', ['id' => $id]))->name('formatos-materiales.show');
+        Route::get('/{id}/edit', fn($id) => Inertia::render('FormatosMateriales/Edit', ['id' => $id]))->name('formatos-materiales.edit');
+    });

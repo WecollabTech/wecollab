@@ -1,1044 +1,3 @@
-<template>
-    <div
-        class="w-full min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100"
-    >
-        <!-- HEADER -->
-        <header
-            class="bg-white/80 backdrop-blur-lg border-b border-gray-200 px-4 sm:px-6 py-4 sticky top-0 z-20 shadow-sm"
-        >
-            <div class="max-w-7xl mx-auto">
-                <div
-                    class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
-                >
-                    <div>
-                        <h1
-                            class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"
-                        >
-                            📚 Biblioteca de Contenido
-                        </h1>
-                        <p class="text-sm text-gray-500 mt-1">
-                            Bienvenido,
-                            <strong>{{ user?.name || "Invitado" }}</strong>
-                            <span
-                                v-if="getUserRole() !== 'Invitado'"
-                                class="text-indigo-600 ml-1"
-                            >
-                                <!-- • {{ getUserRole() }} (Nivel
-                                {{ getRolLevel(getUserRole()) }}) -->
-                            </span>
-                            <span
-                                v-if="esRolWeCollab()"
-                                class="text-purple-600 ml-2 text-xs"
-                                >🏢 We Collab</span
-                            >
-                            <span
-                                v-else-if="esRolCliente()"
-                                class="text-teal-600 ml-2 text-xs"
-                            ></span>
-                        </p>
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                        <div class="flex bg-gray-100 rounded-xl p-1">
-                            <button
-                                @click="cambiarVista('grid')"
-                                :class="[
-                                    'px-3 py-1.5 rounded-lg text-sm font-medium',
-                                    viewMode === 'grid'
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-gray-600 hover:bg-white/50',
-                                ]"
-                            >
-                                🖼️ Grid
-                            </button>
-                            <button
-                                @click="cambiarVista('list')"
-                                :class="[
-                                    'px-3 py-1.5 rounded-lg text-sm font-medium',
-                                    viewMode === 'list'
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-gray-600 hover:bg-white/50',
-                                ]"
-                            >
-                                📋 Lista
-                            </button>
-                        </div>
-
-                        <div class="relative w-full lg:w-80">
-                            <input
-                                v-model="search"
-                                type="text"
-                                placeholder="Buscar contenido..."
-                                class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                            />
-                            <span class="absolute left-3 top-2.5 text-gray-400"
-                                >🔍</span
-                            >
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Filtros de tipo con iconos mejorados -->
-                <div class="flex flex-wrap gap-2 mt-4">
-                    <button
-                        v-for="tipo in tipos"
-                        :key="tipo.value"
-                        @click="tipoSeleccionado = tipo.value"
-                        :class="filterClass(tipo.value)"
-                    >
-                        <span class="mr-1">{{ tipo.icon }}</span>
-                        {{ tipo.label }}
-                    </button>
-                    <button
-                        v-if="search || tipoSeleccionado !== 'todo'"
-                        @click="resetFiltros"
-                        class="px-3 py-1.5 rounded-full text-sm text-gray-500 hover:bg-gray-100"
-                    >
-                        ✕ Limpiar
-                    </button>
-                </div>
-
-                <!-- Filtros de Categoría y Subcategoría -->
-                <div class="flex flex-wrap gap-4 mt-4">
-                    <div class="flex-1 min-w-[200px]">
-                        <label class="block text-xs text-gray-500 mb-1"
-                            >Categoría</label
-                        >
-                        <select
-                            v-model="categoriaSeleccionada"
-                            @change="cargarSubcategorias"
-                            class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                        >
-                            <option value="">Todas las categorías</option>
-                            <option
-                                v-for="cat in categorias"
-                                :key="cat.id"
-                                :value="cat.id"
-                            >
-                                {{ cat.nombre }}
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="flex-1 min-w-[200px]">
-                        <label class="block text-xs text-gray-500 mb-1"
-                            >Subcategoría</label
-                        >
-                        <select
-                            v-model="subcategoriaSeleccionada"
-                            class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                            :disabled="!categoriaSeleccionada"
-                        >
-                            <option value="">Todas las subcategorías</option>
-                            <option
-                                v-for="sub in subcategoriasFiltradas"
-                                :key="sub.id"
-                                :value="sub.id"
-                            >
-                                {{ sub.nombre }}
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="flex items-end">
-                        <button
-                            @click="limpiarFiltrosCategoria"
-                            class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-sm"
-                        >
-                            Limpiar filtros
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Stats -->
-                <div class="flex gap-4 mt-3 text-xs text-gray-500">
-                    <span>📊 Total: {{ stats.total }}</span>
-                    <span>👁️ Visibles: {{ stats.visibles }}</span>
-                    <span v-if="stats.accesibles > 0" class="text-green-600"
-                        >✅ Accesibles: {{ stats.accesibles }}</span
-                    >
-                    <span v-if="stats.restringidos > 0" class="text-amber-600"
-                        >🔒 Restringidos: {{ stats.restringidos }}</span
-                    >
-                </div>
-            </div>
-        </header>
-
-        <!-- CONTENIDO PRINCIPAL -->
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-            <div
-                v-if="error"
-                class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-center justify-between"
-            >
-                <span>{{ error }}</span>
-                <button
-                    @click="cargarDatosIniciales"
-                    class="text-sm font-semibold underline"
-                >
-                    Reintentar
-                </button>
-            </div>
-
-            <!-- Loading -->
-            <div
-                v-if="loading"
-                :class="
-                    viewMode === 'grid'
-                        ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5'
-                        : 'space-y-3'
-                "
-            >
-                <div v-for="i in 10" :key="i" class="animate-pulse">
-                    <div
-                        v-if="viewMode === 'grid'"
-                        class="bg-gray-200 rounded-xl h-48"
-                    ></div>
-                    <div class="mt-3 space-y-2">
-                        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                        <div class="h-3 bg-gray-100 rounded w-full"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Mensaje si es cliente y no hay contenido visible -->
-            <div
-                v-else-if="
-                    esRolCliente() &&
-                    filtrados.length === 0 &&
-                    !loading &&
-                    !error &&
-                    tutoriales.length > 0
-                "
-                class="text-center py-20"
-            >
-                <div class="text-6xl mb-4">🔒</div>
-                <h3 class="text-xl font-semibold text-gray-800">
-                    Contenido exclusivo para We Collab
-                </h3>
-                <p class="text-gray-500 mt-2">
-                    Los materiales que buscas son parte del ecosistema interno.
-                </p>
-                <p class="text-sm text-gray-400 mt-4">
-                    Tu rol: {{ getUserRole() }}
-                </p>
-            </div>
-
-            <!-- VISTA GRID -->
-            <div
-                v-else-if="
-                    viewMode === 'grid' &&
-                    (materialesAccesibles.length > 0 ||
-                        Object.keys(materialesPorCategoria).length > 0)
-                "
-                class="space-y-8"
-            >
-                <!-- 🌟 SECCIÓN DESTACADOS -->
-                <div v-if="materialesAccesibles.length > 0" class="space-y-4">
-                    <div
-                        class="flex items-center justify-between border-b-2 border-indigo-200 pb-2"
-                    >
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl">🌟</span>
-                            <h2
-                                class="text-xl font-bold text-indigo-700 uppercase tracking-wide"
-                            >
-                                Destacados para ti
-                            </h2>
-                            <span
-                                class="text-sm text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full"
-                            >
-                                {{ materialesAccesibles.length }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div
-                        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5"
-                    >
-                        <article
-                            v-for="recurso in materialesAccesibles.slice(0, 10)"
-                            :key="recurso.id"
-                            class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-indigo-100 hover:-translate-y-1 ring-1 ring-indigo-200"
-                        >
-                            <div
-                                class="relative h-48 overflow-hidden bg-gray-100"
-                            >
-                                <!-- Thumbnail mejorado para documentos -->
-                                <img
-                                    v-if="esVideo(recurso.url)"
-                                    :src="getThumbnailVideo(recurso.url)"
-                                    :alt="recurso.titulo"
-                                    class="w-full h-full object-cover group-hover:scale-110 transition duration-500"
-                                    @error="
-                                        $event.target.src =
-                                            getPlaceholderPorTipo(
-                                                recurso.tipo_material,
-                                            )
-                                    "
-                                />
-                                <div
-                                    v-else
-                                    :class="
-                                        getPlaceholderBgClass(
-                                            recurso.tipo_material,
-                                        )
-                                    "
-                                    class="w-full h-full flex flex-col items-center justify-center group-hover:scale-110 transition duration-500"
-                                >
-                                    <span
-                                        class="text-6xl mb-3 drop-shadow-lg"
-                                        >{{
-                                            getIconoPorTipo(
-                                                recurso.tipo_material,
-                                            )
-                                        }}</span
-                                    >
-                                    <span
-                                        class="text-white text-base font-bold px-4 text-center uppercase tracking-wide"
-                                        >{{
-                                            getNombreTipo(recurso.tipo_material)
-                                        }}</span
-                                    >
-                                    <div class="mt-2 flex gap-1">
-                                        <span class="text-white/60 text-[10px]"
-                                            >●</span
-                                        >
-                                        <span class="text-white/60 text-[10px]"
-                                            >●</span
-                                        >
-                                        <span class="text-white/60 text-[10px]"
-                                            >●</span
-                                        >
-                                    </div>
-                                    <span
-                                        class="text-white/80 text-[11px] mt-2 line-clamp-1 max-w-[90%] font-medium"
-                                        >{{ recurso.titulo }}</span
-                                    >
-                                </div>
-
-                                <span
-                                    class="absolute top-2 left-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] px-2 py-1 rounded-full z-20"
-                                >
-                                    ⭐ Destacado
-                                </span>
-                                <span
-                                    :class="[
-                                        'absolute top-2 right-2 text-white text-[10px] px-2 py-1 rounded-full z-20 font-semibold shadow-sm',
-                                        getTipoBadgeClass(
-                                            recurso.tipo_material,
-                                        ),
-                                    ]"
-                                >
-                                    {{ getIconoPorTipo(recurso.tipo_material) }}
-                                    {{ recurso.tipo_material }}
-                                </span>
-                            </div>
-                            <div class="p-4">
-                                <h3
-                                    class="text-sm font-bold line-clamp-1 text-gray-800"
-                                >
-                                    {{ recurso.titulo }}
-                                </h3>
-                                <p
-                                    class="text-xs text-gray-500 line-clamp-2 mt-2 leading-relaxed"
-                                >
-                                    {{
-                                        recurso.descripcion || "Sin descripción"
-                                    }}
-                                </p>
-                                <div
-                                    class="flex items-center justify-between mt-4 pt-2 border-t border-gray-100"
-                                >
-                                    <span
-                                        class="text-[10px] text-gray-400 flex items-center gap-1"
-                                    >
-                                        <span>📅</span>
-                                        {{
-                                            new Date(
-                                                recurso.created_at,
-                                            ).toLocaleDateString("es-ES")
-                                        }}
-                                    </span>
-                                    <!-- <span
-                                        v-if="recurso.alcance"
-                                        :class="
-                                            getAlcanceBadgeClass(
-                                                recurso.alcance,
-                                            )
-                                        "
-                                        class="text-[10px] px-2 py-1 rounded-full font-medium"
-                                    >
-                                        {{ recurso.alcance }}
-                                    </span> -->
-                                </div>
-                                <div class="mt-4">
-                                    <button
-                                        @click.stop="verVideo(recurso)"
-                                        class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all transform hover:scale-105"
-                                        :class="
-                                            getBotonGradiente(
-                                                recurso.tipo_material,
-                                            )
-                                        "
-                                    >
-                                        <span>{{
-                                            esVideo(recurso.url)
-                                                ? "🎬 Ver video"
-                                                : "📄 Ver documento"
-                                        }}</span>
-                                        <span>→</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </article>
-                    </div>
-                </div>
-
-                <div
-                    v-if="materialesAccesibles.length > 0"
-                    class="border-t-2 border-gray-200 my-4"
-                ></div>
-
-                <!-- ORGANIZACIÓN POR CATEGORÍA Y SUBCATEGORÍA - GRID -->
-                <div
-                    v-for="(categoria, catIndex) in categoriasConContenido"
-                    :key="catIndex"
-                    class="space-y-4"
-                >
-                    <div
-                        class="flex items-center justify-between border-b-2 border-indigo-200 pb-2 bg-gradient-to-r from-indigo-50 to-transparent px-3 py-2 rounded-lg"
-                    >
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl">{{ categoria.icono }}</span>
-                            <h2
-                                class="text-xl font-bold text-indigo-700 uppercase tracking-wide"
-                            >
-                                {{ categoria.nombre }}
-                            </h2>
-                            <span
-                                class="text-sm text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full"
-                            >
-                                {{ categoria.totalMateriales }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div
-                        v-for="subcategoria in categoria.subcategorias"
-                        :key="subcategoria.id"
-                        class="space-y-3 ml-4"
-                    >
-                        <div
-                            class="flex items-center gap-2 border-l-4 border-indigo-300 pl-3 py-1"
-                        >
-                            <span class="text-lg">📁</span>
-                            <h3
-                                class="text-md font-semibold text-gray-700 uppercase tracking-wide"
-                            >
-                                {{ subcategoria.nombre }}
-                            </h3>
-                            <span
-                                class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full"
-                            >
-                                {{ subcategoria.items.length }}
-                            </span>
-                        </div>
-
-                        <div
-                            class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5 pl-4"
-                        >
-                            <article
-                                v-for="recurso in subcategoria.items"
-                                :key="recurso.id"
-                                class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 hover:-translate-y-1"
-                            >
-                                <div
-                                    class="relative h-48 overflow-hidden bg-gray-100"
-                                >
-                                    <img
-                                        v-if="esVideo(recurso.url)"
-                                        :src="getThumbnailVideo(recurso.url)"
-                                        :alt="recurso.titulo"
-                                        class="w-full h-full object-cover group-hover:scale-110 transition duration-500"
-                                        @error="
-                                            $event.target.src =
-                                                getPlaceholderPorTipo(
-                                                    recurso.tipo_material,
-                                                )
-                                        "
-                                    />
-                                    <div
-                                        v-else
-                                        :class="
-                                            getPlaceholderBgClass(
-                                                recurso.tipo_material,
-                                            )
-                                        "
-                                        class="w-full h-full flex flex-col items-center justify-center group-hover:scale-110 transition duration-500"
-                                    >
-                                        <span
-                                            class="text-6xl mb-3 drop-shadow-lg"
-                                            >{{
-                                                getIconoPorTipo(
-                                                    recurso.tipo_material,
-                                                )
-                                            }}</span
-                                        >
-                                        <span
-                                            class="text-white text-base font-bold px-4 text-center uppercase tracking-wide"
-                                            >{{
-                                                getNombreTipo(
-                                                    recurso.tipo_material,
-                                                )
-                                            }}</span
-                                        >
-                                        <div class="mt-2 flex gap-1">
-                                            <span
-                                                class="text-white/60 text-[10px]"
-                                                >●</span
-                                            >
-                                            <span
-                                                class="text-white/60 text-[10px]"
-                                                >●</span
-                                            >
-                                            <span
-                                                class="text-white/60 text-[10px]"
-                                                >●</span
-                                            >
-                                        </div>
-                                        <span
-                                            class="text-white/80 text-[11px] mt-2 line-clamp-1 max-w-[90%] font-medium"
-                                            >{{ recurso.titulo }}</span
-                                        >
-                                    </div>
-
-                                    <div
-                                        v-if="estaBloqueado(recurso)"
-                                        class="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-10"
-                                    >
-                                        <span class="text-4xl mb-2">🔒</span>
-                                        <span
-                                            class="text-white text-xs font-medium text-center px-3"
-                                            >Contenido restringido</span
-                                        >
-                                        <span
-                                            class="text-white/70 text-[10px] mt-1"
-                                            >{{ recurso.alcance }}</span
-                                        >
-                                    </div>
-
-                                    <span
-                                        :class="[
-                                            'absolute top-2 left-2 text-white text-[10px] px-2 py-1 rounded-full z-20 font-semibold shadow-sm',
-                                            getTipoBadgeClass(
-                                                recurso.tipo_material,
-                                            ),
-                                        ]"
-                                    >
-                                        {{
-                                            getIconoPorTipo(
-                                                recurso.tipo_material,
-                                            )
-                                        }}
-                                        {{ recurso.tipo_material }}
-                                    </span>
-                                </div>
-
-                                <div class="p-4">
-                                    <h3
-                                        class="text-sm font-bold line-clamp-1"
-                                        :class="
-                                            estaBloqueado(recurso)
-                                                ? 'text-gray-400'
-                                                : 'text-gray-800'
-                                        "
-                                    >
-                                        {{ recurso.titulo }}
-                                    </h3>
-                                    <p
-                                        class="text-xs text-gray-500 line-clamp-2 mt-2 leading-relaxed"
-                                    >
-                                        {{
-                                            recurso.descripcion ||
-                                            "Sin descripción"
-                                        }}
-                                    </p>
-                                    <div
-                                        class="flex items-center justify-between mt-4 pt-2 border-t border-gray-100"
-                                    >
-                                        <span
-                                            class="text-[10px] text-gray-400 flex items-center gap-1"
-                                        >
-                                            <span>📅</span>
-                                            {{
-                                                new Date(
-                                                    recurso.created_at,
-                                                ).toLocaleDateString("es-ES")
-                                            }}
-                                        </span>
-                                        <span
-                                            class="text-[10px] text-gray-400 flex items-center gap-1"
-                                        >
-                                            <span>👁️</span>
-                                            {{ recurso.visitas || 0 }} vistas
-                                        </span>
-                                    </div>
-
-                                    <div class="mt-4">
-                                        <button
-                                            @click.stop="verVideo(recurso)"
-                                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all transform hover:scale-105"
-                                            :class="
-                                                estaBloqueado(recurso)
-                                                    ? 'bg-gray-400 cursor-not-allowed'
-                                                    : getBotonGradiente(
-                                                          recurso.tipo_material,
-                                                      )
-                                            "
-                                            :disabled="estaBloqueado(recurso)"
-                                        >
-                                            <span>{{
-                                                estaBloqueado(recurso)
-                                                    ? "🔒 Sin acceso"
-                                                    : esVideo(recurso.url)
-                                                      ? "🎬 Ver video"
-                                                      : "📄 Ver documento"
-                                            }}</span>
-                                            <span v-if="!estaBloqueado(recurso)"
-                                                >→</span
-                                            >
-                                        </button>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- VISTA LISTA -->
-            <div
-                v-else-if="
-                    viewMode === 'list' &&
-                    (materialesAccesibles.length > 0 ||
-                        Object.keys(materialesPorCategoria).length > 0)
-                "
-                class="space-y-8"
-            >
-                <!-- 🌟 SECCIÓN DESTACADOS - LISTA -->
-                <div v-if="materialesAccesibles.length > 0" class="space-y-4">
-                    <div
-                        class="flex items-center justify-between border-b-2 border-indigo-200 pb-2"
-                    >
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl">🌟</span>
-                            <h2
-                                class="text-xl font-bold text-indigo-700 uppercase tracking-wide"
-                            >
-                                Destacados para ti
-                            </h2>
-                            <span
-                                class="text-sm text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full"
-                            >
-                                {{ materialesAccesibles.length }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <div
-                            v-for="recurso in materialesAccesibles.slice(0, 10)"
-                            :key="recurso.id"
-                            class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all border border-indigo-100 hover:border-indigo-200"
-                        >
-                            <div class="flex items-center gap-5 p-4">
-                                <div
-                                    class="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0"
-                                >
-                                    <img
-                                        v-if="esVideo(recurso.url)"
-                                        :src="getThumbnailVideo(recurso.url)"
-                                        :alt="recurso.titulo"
-                                        class="w-full h-full object-cover"
-                                        @error="
-                                            $event.target.src =
-                                                getPlaceholderPorTipo(
-                                                    recurso.tipo_material,
-                                                )
-                                        "
-                                    />
-                                    <div
-                                        v-else
-                                        :class="
-                                            getPlaceholderBgClass(
-                                                recurso.tipo_material,
-                                            )
-                                        "
-                                        class="w-full h-full flex items-center justify-center"
-                                    >
-                                        <span class="text-2xl">{{
-                                            getIconoPorTipo(
-                                                recurso.tipo_material,
-                                            )
-                                        }}</span>
-                                    </div>
-                                    <span
-                                        class="absolute top-1 left-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[8px] px-1 py-0.5 rounded-full"
-                                    >
-                                        ⭐
-                                    </span>
-                                </div>
-
-                                <div class="flex-1 min-w-0">
-                                    <div
-                                        class="flex items-center gap-2 flex-wrap"
-                                    >
-                                        <h3
-                                            class="text-sm font-bold text-gray-800"
-                                        >
-                                            {{ recurso.titulo }}
-                                        </h3>
-                                        <span
-                                            :class="[
-                                                'text-[10px] px-2 py-0.5 rounded-full font-medium',
-                                                getTipoBadgeClass(
-                                                    recurso.tipo_material,
-                                                ),
-                                            ]"
-                                        >
-                                            {{
-                                                getIconoPorTipo(
-                                                    recurso.tipo_material,
-                                                )
-                                            }}
-                                            {{ recurso.tipo_material }}
-                                        </span>
-                                    </div>
-                                    <p
-                                        class="text-xs text-gray-500 line-clamp-1 mt-1"
-                                    >
-                                        {{
-                                            recurso.descripcion ||
-                                            "Sin descripción"
-                                        }}
-                                    </p>
-                                    <div
-                                        class="flex items-center gap-4 mt-2 text-[10px] text-gray-400"
-                                    >
-                                        <span class="flex items-center gap-1"
-                                            >📅
-                                            {{
-                                                new Date(
-                                                    recurso.created_at,
-                                                ).toLocaleDateString("es-ES")
-                                            }}</span
-                                        >
-                                        <span class="flex items-center gap-1"
-                                            >👁️
-                                            {{ recurso.visitas || 0 }}
-                                            vistas</span
-                                        >
-                                        <span class="text-green-600"
-                                            >✅ Accesible</span
-                                        >
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-col items-end gap-2">
-                                    <span
-                                        v-if="recurso.alcance"
-                                        :class="
-                                            getAlcanceBadgeClass(
-                                                recurso.alcance,
-                                            )
-                                        "
-                                        class="text-[10px] px-2 py-1 rounded-full font-medium"
-                                    >
-                                        {{ recurso.alcance }}
-                                    </span>
-                                    <button
-                                        @click.stop="verVideo(recurso)"
-                                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all"
-                                        :class="
-                                            getBotonGradiente(
-                                                recurso.tipo_material,
-                                            )
-                                        "
-                                    >
-                                        {{
-                                            esVideo(recurso.url)
-                                                ? "🎬 Ver video"
-                                                : "📄 Abrir documento"
-                                        }}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    v-if="materialesAccesibles.length > 0"
-                    class="border-t-2 border-gray-200 my-4"
-                ></div>
-
-                <!-- ORGANIZACIÓN POR CATEGORÍA Y SUBCATEGORÍA - LISTA -->
-                <div
-                    v-for="(categoria, catIndex) in categoriasConContenido"
-                    :key="catIndex"
-                    class="space-y-4"
-                >
-                    <div
-                        class="flex items-center justify-between border-b-2 border-indigo-200 pb-2 bg-gradient-to-r from-indigo-50 to-transparent px-3 py-2 rounded-lg"
-                    >
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl">{{ categoria.icono }}</span>
-                            <h2
-                                class="text-xl font-bold text-indigo-700 uppercase tracking-wide"
-                            >
-                                {{ categoria.nombre }}
-                            </h2>
-                            <span
-                                class="text-sm text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full"
-                            >
-                                {{ categoria.totalMateriales }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div
-                        v-for="subcategoria in categoria.subcategorias"
-                        :key="subcategoria.id"
-                        class="space-y-3 ml-4"
-                    >
-                        <div
-                            class="flex items-center gap-2 border-l-4 border-indigo-300 pl-3 py-1"
-                        >
-                            <span class="text-lg">📁</span>
-                            <h3
-                                class="text-md font-semibold text-gray-700 uppercase tracking-wide"
-                            >
-                                {{ subcategoria.nombre }}
-                            </h3>
-                            <span
-                                class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full"
-                            >
-                                {{ subcategoria.items.length }}
-                            </span>
-                        </div>
-
-                        <div class="space-y-2 pl-4">
-                            <div
-                                v-for="recurso in subcategoria.items"
-                                :key="recurso.id"
-                                class="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border border-gray-100 hover:border-indigo-200"
-                            >
-                                <div class="flex items-center gap-5 p-4">
-                                    <div
-                                        class="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0"
-                                    >
-                                        <img
-                                            v-if="esVideo(recurso.url)"
-                                            :src="
-                                                getThumbnailVideo(recurso.url)
-                                            "
-                                            :alt="recurso.titulo"
-                                            class="w-full h-full object-cover"
-                                            @error="
-                                                $event.target.src =
-                                                    getPlaceholderPorTipo(
-                                                        recurso.tipo_material,
-                                                    )
-                                            "
-                                        />
-                                        <div
-                                            v-else
-                                            :class="
-                                                getPlaceholderBgClass(
-                                                    recurso.tipo_material,
-                                                )
-                                            "
-                                            class="w-full h-full flex items-center justify-center"
-                                        >
-                                            <span class="text-2xl">{{
-                                                getIconoPorTipo(
-                                                    recurso.tipo_material,
-                                                )
-                                            }}</span>
-                                        </div>
-                                        <div
-                                            v-if="estaBloqueado(recurso)"
-                                            class="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg"
-                                        >
-                                            <span class="text-white text-sm"
-                                                >🔒</span
-                                            >
-                                        </div>
-                                    </div>
-
-                                    <div class="flex-1 min-w-0">
-                                        <div
-                                            class="flex items-center gap-2 flex-wrap"
-                                        >
-                                            <h3
-                                                class="text-sm font-bold"
-                                                :class="
-                                                    estaBloqueado(recurso)
-                                                        ? 'text-gray-400'
-                                                        : 'text-gray-800'
-                                                "
-                                            >
-                                                {{ recurso.titulo }}
-                                            </h3>
-                                            <span
-                                                :class="[
-                                                    'text-[10px] px-2 py-0.5 rounded-full font-medium',
-                                                    getTipoBadgeClass(
-                                                        recurso.tipo_material,
-                                                    ),
-                                                ]"
-                                            >
-                                                {{
-                                                    getIconoPorTipo(
-                                                        recurso.tipo_material,
-                                                    )
-                                                }}
-                                                {{ recurso.tipo_material }}
-                                            </span>
-                                        </div>
-                                        <p
-                                            class="text-xs text-gray-500 line-clamp-1 mt-1"
-                                        >
-                                            {{
-                                                recurso.descripcion ||
-                                                "Sin descripción"
-                                            }}
-                                        </p>
-                                        <div
-                                            class="flex items-center gap-4 mt-2 text-[10px] text-gray-400"
-                                        >
-                                            <span
-                                                class="flex items-center gap-1"
-                                                >📅
-                                                {{
-                                                    new Date(
-                                                        recurso.created_at,
-                                                    ).toLocaleDateString(
-                                                        "es-ES",
-                                                    )
-                                                }}</span
-                                            >
-                                            <span
-                                                class="flex items-center gap-1"
-                                                >👁️
-                                                {{ recurso.visitas || 0 }}
-                                                vistas</span
-                                            >
-                                            <span
-                                                v-if="estaBloqueado(recurso)"
-                                                class="text-amber-600 flex items-center gap-1"
-                                            >
-                                                🔒 Requiere:
-                                                {{ recurso.alcance }}
-                                            </span>
-                                            <span
-                                                v-else
-                                                class="text-green-600 flex items-center gap-1"
-                                                >✅ Accesible</span
-                                            >
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col items-end gap-2">
-                                        <span
-                                            v-if="recurso.alcance"
-                                            :class="
-                                                getAlcanceBadgeClass(
-                                                    recurso.alcance,
-                                                )
-                                            "
-                                            class="text-[10px] px-2 py-1 rounded-full font-medium"
-                                        >
-                                            {{ recurso.alcance }}
-                                        </span>
-                                        <button
-                                            @click.stop="verVideo(recurso)"
-                                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all"
-                                            :class="
-                                                estaBloqueado(recurso)
-                                                    ? 'bg-gray-400 cursor-not-allowed'
-                                                    : getBotonGradiente(
-                                                          recurso.tipo_material,
-                                                      )
-                                            "
-                                            :disabled="estaBloqueado(recurso)"
-                                        >
-                                            {{
-                                                estaBloqueado(recurso)
-                                                    ? "🔒 Sin acceso"
-                                                    : esVideo(recurso.url)
-                                                      ? "🎬 Ver video"
-                                                      : "📄 Abrir documento"
-                                            }}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Estados vacíos -->
-            <div
-                v-if="
-                    !loading &&
-                    !error &&
-                    Object.keys(materialesPorCategoria).length === 0 &&
-                    materialesAccesibles.length === 0 &&
-                    searchDebounced
-                "
-                class="text-center py-20"
-            >
-                <div class="text-6xl mb-4">🔍</div>
-                <p class="text-gray-600">No se encontró "{{ search }}"</p>
-                <button
-                    @click="resetFiltros"
-                    class="mt-3 text-indigo-600 text-sm hover:underline"
-                >
-                    Limpiar filtros
-                </button>
-            </div>
-
-            <div
-                v-if="!loading && !error && tutoriales.length === 0"
-                class="text-center py-20"
-            >
-                <div class="text-6xl mb-4">📚</div>
-                <p class="text-gray-600">Aún no hay contenido disponible</p>
-            </div>
-        </main>
-
-        <!-- Toast -->
-        <Teleport to="body">
-            <Transition name="toast">
-                <div
-                    v-if="showToast"
-                    :class="[
-                        'fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg',
-                        toastType === 'success'
-                            ? 'bg-green-500 text-white'
-                            : 'bg-red-500 text-white',
-                    ]"
-                >
-                    <span>{{ toastType === "success" ? "✅" : "⚠️" }}</span>
-                    <span class="text-sm">{{ toastMessage }}</span>
-                </div>
-            </Transition>
-        </Teleport>
-    </div>
-</template>
-
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { usePage, router } from "@inertiajs/vue3";
@@ -1065,7 +24,7 @@ const toastType = ref("success");
 const categoriaSeleccionada = ref("");
 const subcategoriaSeleccionada = ref("");
 
-// 🔷 TIPOS DE MATERIAL CON ICONOS MEJORADOS
+// 🔷 TIPOS DE MATERIAL
 const tipos = [
     { label: "Todo", value: "todo", icon: "📚" },
     { label: "Video", value: "video", icon: "🎬" },
@@ -1135,11 +94,7 @@ const getUserRole = () => {
     if (!role) return "Invitado";
     if (typeof role === "object") {
         const roleName =
-            role.nombre?.toString() ||
-            role.name?.toString() ||
-            role.slug?.toString() ||
-            role.role?.toString() ||
-            "";
+            role.nombre || role.name || role.slug || role.role || "";
         return MAPEO_ROLES[roleName.trim()] || roleName.trim() || "Invitado";
     }
     return (
@@ -1150,15 +105,10 @@ const getUserRole = () => {
 };
 
 const getRolLevel = (rolNombre) => JERARQUIA_ROLES[rolNombre] || 0;
-
 const esRolWeCollab = () => ROLES_WE_COLLAB.includes(getUserRole());
 const esRolCliente = () => ROLES_CLIENTE.includes(getUserRole());
-
-const getEcosistema = () => {
-    if (esRolWeCollab()) return "we_collab";
-    if (esRolCliente()) return "cliente";
-    return "desconocido";
-};
+const getEcosistema = () =>
+    esRolWeCollab() ? "we_collab" : esRolCliente() ? "cliente" : "desconocido";
 
 const getAlcanceEcosistema = (alcance) => {
     if (ALCANCES_WE_COLLAB.includes(alcance)) return "we_collab";
@@ -1171,8 +121,7 @@ const debeOcultarCompletamente = (tutorial) => {
     if (esRolCliente()) {
         if (!alcanceTutorial || alcanceTutorial.trim() === "") return false;
         const alcanceNorm = MAPEO_ROLES[alcanceTutorial] || alcanceTutorial;
-        const ecosistemaAlcance = getAlcanceEcosistema(alcanceNorm);
-        return ecosistemaAlcance === "we_collab";
+        return getAlcanceEcosistema(alcanceNorm) === "we_collab";
     }
     return false;
 };
@@ -1180,21 +129,19 @@ const debeOcultarCompletamente = (tutorial) => {
 const tieneAcceso = (tutorial) => {
     const rolUsuario = getUserRole();
     let alcanceTutorial = tutorial.alcance;
-
     if (!alcanceTutorial || alcanceTutorial.trim() === "") return true;
     alcanceTutorial = MAPEO_ROLES[alcanceTutorial] || alcanceTutorial;
     if (!ALCANCES_VALIDOS.includes(alcanceTutorial)) return false;
-
-    const ecosistemaUsuario = getEcosistema();
-    const ecosistemaAlcance = getAlcanceEcosistema(alcanceTutorial);
-
-    if (ecosistemaUsuario === "cliente" && ecosistemaAlcance === "we_collab") {
+    if (
+        getEcosistema() === "cliente" &&
+        getAlcanceEcosistema(alcanceTutorial) === "we_collab"
+    )
         return false;
-    }
-
-    if (rolUsuario === "Superadmin we collab") return true;
-    if (rolUsuario === "Admin we collab") return true;
-
+    if (
+        rolUsuario === "Superadmin we collab" ||
+        rolUsuario === "Admin we collab"
+    )
+        return true;
     return getRolLevel(rolUsuario) >= getRolLevel(alcanceTutorial);
 };
 
@@ -1202,11 +149,11 @@ const estaBloqueado = (tutorial) => {
     const alcanceTutorial = tutorial.alcance;
     if (!alcanceTutorial || alcanceTutorial.trim() === "") return false;
     const alcanceNorm = MAPEO_ROLES[alcanceTutorial] || alcanceTutorial;
-    const ecosistemaUsuario = getEcosistema();
-    const ecosistemaAlcance = getAlcanceEcosistema(alcanceNorm);
-    if (ecosistemaUsuario === "cliente" && ecosistemaAlcance === "we_collab") {
+    if (
+        getEcosistema() === "cliente" &&
+        getAlcanceEcosistema(alcanceNorm) === "we_collab"
+    )
         return true;
-    }
     return !tieneAcceso(tutorial);
 };
 
@@ -1219,58 +166,52 @@ const filtrados = computed(() => {
             normalize(t.tipo_material) === normalize(tipoSeleccionado.value);
         if (!tipoOK) return false;
         const searchTerm = searchDebounced.value.toLowerCase().trim();
-        const searchOK =
+        return (
             !searchTerm ||
             t.titulo?.toLowerCase().includes(searchTerm) ||
-            t.descripcion?.toLowerCase().includes(searchTerm);
-        return searchOK;
+            t.descripcion?.toLowerCase().includes(searchTerm)
+        );
     });
 });
 
-const materialesAccesibles = computed(() => {
-    return filtrados.value.filter((t) => tieneAcceso(t));
-});
+const materialesAccesibles = computed(() =>
+    filtrados.value.filter((t) => tieneAcceso(t)),
+);
 
 const materialesPorCategoria = computed(() => {
     const resultado = {};
     let materialesFiltrados = filtrados.value;
-
-    if (categoriaSeleccionada.value) {
+    if (categoriaSeleccionada.value)
         materialesFiltrados = materialesFiltrados.filter(
             (t) => t.categoria_id == categoriaSeleccionada.value,
         );
-    }
-    if (subcategoriaSeleccionada.value) {
+    if (subcategoriaSeleccionada.value)
         materialesFiltrados = materialesFiltrados.filter(
             (t) => t.subcategoria_id == subcategoriaSeleccionada.value,
         );
-    }
 
     materialesFiltrados.forEach((tutorial) => {
-        const categoriaId = tutorial.categoria_id || "sin_categoria";
-        const categoriaNombre = tutorial.categoria?.nombre || "Sin categoría";
-        const subcategoriaId = tutorial.subcategoria_id || "sin_subcategoria";
-        const subcategoriaNombre =
-            tutorial.subcategoria?.nombre || "Sin subcategoría";
+        const catId = tutorial.categoria_id || "sin_categoria";
+        const catNom = tutorial.categoria?.nombre || "Sin categoría";
+        const subId = tutorial.subcategoria_id || "sin_subcategoria";
+        const subNom = tutorial.subcategoria?.nombre || "Sin subcategoría";
 
-        if (!resultado[categoriaId]) {
-            resultado[categoriaId] = {
-                id: categoriaId,
-                nombre: categoriaNombre,
+        if (!resultado[catId]) {
+            resultado[catId] = {
+                id: catId,
+                nombre: catNom,
                 icono: "📚",
                 subcategorias: {},
             };
         }
-        if (!resultado[categoriaId].subcategorias[subcategoriaId]) {
-            resultado[categoriaId].subcategorias[subcategoriaId] = {
-                id: subcategoriaId,
-                nombre: subcategoriaNombre,
+        if (!resultado[catId].subcategorias[subId]) {
+            resultado[catId].subcategorias[subId] = {
+                id: subId,
+                nombre: subNom,
                 items: [],
             };
         }
-        resultado[categoriaId].subcategorias[subcategoriaId].items.push(
-            tutorial,
-        );
+        resultado[catId].subcategorias[subId].items.push(tutorial);
     });
 
     return Object.values(resultado).map((cat) => ({
@@ -1283,170 +224,90 @@ const materialesPorCategoria = computed(() => {
     }));
 });
 
-const categoriasConContenido = computed(() => {
-    return materialesPorCategoria.value.filter(
-        (cat) => cat.totalMateriales > 0,
-    );
-});
-
-const subcategoriasFiltradas = computed(() => {
-    if (!categoriaSeleccionada.value) return [];
-    return subcategorias.value.filter(
-        (sub) => sub.categorias_id == categoriaSeleccionada.value,
-    );
-});
-
+const categoriasConContenido = computed(() =>
+    materialesPorCategoria.value.filter((cat) => cat.totalMateriales > 0),
+);
+const subcategoriasFiltradas = computed(() =>
+    categoriaSeleccionada.value
+        ? subcategorias.value.filter(
+              (sub) => sub.categorias_id == categoriaSeleccionada.value,
+          )
+        : [],
+);
 const stats = computed(() => ({
     total: tutoriales.value.length,
     visibles: filtrados.value.length,
-    accesibles: filtrados.value.filter((t) => tieneAcceso(t)).length,
-    restringidos: filtrados.value.filter((t) => estaBloqueado(t)).length,
+    accesibles: filtrados.value.filter(tieneAcceso).length,
+    restringidos: filtrados.value.filter(estaBloqueado).length,
 }));
 
 // ============================================
-// 🖼️ FUNCIONES MEJORADAS PARA THUMBNAILS Y PLACEHOLDERS
+// 🖼️ UTILIDADES VISUALES
 // ============================================
 
-const getIconoPorTipo = (tipo) => {
-    const iconos = {
-        video: "🎬",
-        manual: "📘",
-        guia: "🗺️",
-        triptico: "📊",
-        default: "📄",
-    };
-    return iconos[tipo] || iconos.default;
-};
+const getIconoPorTipo = (tipo) =>
+    ({ video: "🎬", manual: "📘", guia: "🗺️", triptico: "📊" })[tipo] || "📄";
 
-const getNombreTipo = (tipo) => {
-    const nombres = {
+const getNombreTipo = (tipo) =>
+    ({
         video: "VIDEO TUTORIAL",
         manual: "MANUAL TÉCNICO",
         guia: "GUÍA PRÁCTICA",
         triptico: "INFOGRAFÍA",
-        default: "DOCUMENTO",
-    };
-    return nombres[tipo] || nombres.default;
-};
-
-const getBotonGradiente = (tipo) => {
-    const gradientes = {
-        video: "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700",
-        manual: "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700",
-        guia: "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700",
-        triptico:
-            "bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700",
-        default:
-            "bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700",
-    };
-    return gradientes[tipo] || gradientes.default;
-};
-
-const esVideo = (url) => {
-    if (!url) return false;
-    return url.includes("youtube.com") || url.includes("youtu.be");
-};
+    })[tipo] || "DOCUMENTO";
 
 const getThumbnailVideo = (url) => {
     if (!url) return null;
     let videoId = null;
-    if (url.includes("youtu.be/")) {
+    if (url.includes("youtu.be/"))
         videoId = url.split("youtu.be/")[1]?.split(/[?&#]/)[0];
-    } else if (url.includes("v=")) {
+    else if (url.includes("v="))
         videoId = url.split("v=")[1]?.split(/[?&#]/)[0];
-    } else if (url.includes("/embed/")) {
+    else if (url.includes("/embed/"))
         videoId = url.split("/embed/")[1]?.split(/[?&#]/)[0];
-    }
-    if (videoId && videoId.length === 11) {
-        return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    }
-    return null;
-};
-
-const getPlaceholderBgClass = (tipo) => {
-    const classes = {
-        video: "bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700",
-        manual: "bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700",
-        guia: "bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700",
-        triptico:
-            "bg-gradient-to-br from-violet-500 via-violet-600 to-violet-700",
-    };
-    return (
-        classes[tipo] ||
-        "bg-gradient-to-br from-gray-500 via-gray-600 to-gray-700"
-    );
-};
-
-const getPlaceholderPorTipo = (tipo) => {
-    const placeholders = {
-        video: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23ef4444'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E🎬%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EVIDEO%3C/text%3E%3C/svg%3E",
-        manual: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%233b82f6'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E📘%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EMANUAL%3C/text%3E%3C/svg%3E",
-        guia: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%2310b981'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E🗺️%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EGUÍA%3C/text%3E%3C/svg%3E",
-        triptico:
-            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%238b5cf6'/%3E%3Ctext x='200' y='140' text-anchor='middle' fill='white' font-size='64'%3E📊%3C/text%3E%3Ctext x='200' y='200' text-anchor='middle' fill='white' font-size='20' font-weight='bold'%3EINFOGRAFÍA%3C/text%3E%3C/svg%3E",
-    };
-    return placeholders[tipo] || placeholders.manual;
+    return videoId && videoId.length === 11
+        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        : null;
 };
 
 // ============================================
-// CARGA DE DATOS
+// CARGA Y LÓGICA
 // ============================================
 
 const cargarCategorias = async () => {
     try {
         const res = await axios.get("/categorias/lista");
         if (res.data?.success) categorias.value = res.data.data;
-    } catch (err) {
-        console.error("Error cargando categorías:", err);
-    }
+    } catch (e) {}
 };
-
 const cargarSubcategorias = async () => {
     try {
-        const params = {};
-        if (categoriaSeleccionada.value)
-            params.categorias_id = categoriaSeleccionada.value;
+        const params = categoriaSeleccionada.value
+            ? { categorias_id: categoriaSeleccionada.value }
+            : {};
         const res = await axios.get("/subcategorias/all", { params });
         if (res.data?.success) subcategorias.value = res.data.data;
-    } catch (err) {
-        console.error("Error cargando subcategorías:", err);
-    }
+    } catch (e) {}
 };
-
 const cargarTutoriales = async () => {
     try {
         error.value = null;
         loading.value = true;
         const res = await axios.get("/tutoriales", { timeout: 10000 });
-        if (res.data?.data && Array.isArray(res.data.data)) {
-            tutoriales.value = res.data.data;
-        } else if (Array.isArray(res.data)) {
-            tutoriales.value = res.data;
-        } else {
-            throw new Error("Respuesta inesperada");
-        }
+        tutoriales.value = res.data?.data || res.data || [];
     } catch (err) {
-        console.error("Error:", err);
-        error.value = "Error de conexión. Intenta de nuevo.";
-        mostrarNotificacion("Error al cargar contenidos", "error");
+        error.value = "Error de conexión.";
     } finally {
         loading.value = false;
     }
 };
 
-const cargarDatosIniciales = async () => {
-    await Promise.all([
+const cargarDatosIniciales = () =>
+    Promise.all([
         cargarTutoriales(),
         cargarCategorias(),
         cargarSubcategorias(),
     ]);
-};
-
-const limpiarFiltrosCategoria = () => {
-    categoriaSeleccionada.value = "";
-    subcategoriaSeleccionada.value = "";
-    cargarSubcategorias();
-};
 
 const mostrarNotificacion = (mensaje, tipo = "success") => {
     toastMessage.value = mensaje;
@@ -1458,100 +319,33 @@ const mostrarNotificacion = (mensaje, tipo = "success") => {
 };
 
 let searchTimeout;
-watch(search, (newValue) => {
+watch(search, (v) => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
-        searchDebounced.value = newValue;
+        searchDebounced.value = v;
     }, 300);
 });
-
 watch(categoriaSeleccionada, () => {
     subcategoriaSeleccionada.value = "";
 });
 
-const tipoConfig = {
-    video: {
-        icon: "🎬",
-        gradient: "from-rose-500 to-rose-600",
-        badge: "bg-rose-100 text-rose-700",
-        route: "videos",
-    },
-    manual: {
-        icon: "📘",
-        gradient: "from-blue-500 to-blue-600",
-        badge: "bg-blue-100 text-blue-700",
-        route: "manuales",
-    },
-    guia: {
-        icon: "🗺️",
-        gradient: "from-emerald-500 to-emerald-600",
-        badge: "bg-emerald-100 text-emerald-700",
-        route: "guias",
-    },
-    triptico: {
-        icon: "📊",
-        gradient: "from-violet-500 to-violet-600",
-        badge: "bg-violet-100 text-violet-700",
-        route: "tripticos",
-    },
-    default: {
-        icon: "📄",
-        gradient: "from-gray-500 to-gray-600",
-        badge: "bg-gray-100 text-gray-700",
-        route: "todos",
-    },
-};
-
-const getTipoConfig = (tipo) => tipoConfig[tipo] || tipoConfig.default;
-
-const getAlcanceBadgeClass = (alcance) => {
-    let alcanceNorm = MAPEO_ROLES[alcance] || alcance;
-    const colors = {
-        "Superadmin we collab": "bg-purple-100 text-purple-800",
-        "Admin we collab": "bg-indigo-100 text-indigo-800",
-        "Soporte we collab": "bg-blue-100 text-blue-800",
-        "Usuario we collab": "bg-cyan-100 text-cyan-800",
-        "Suscriptor SLC": "bg-teal-100 text-teal-800",
-        "Usuario Admin SLC": "bg-emerald-100 text-emerald-800",
-        "Usuario Premium SLC": "bg-amber-100 text-amber-800",
-        "Usuario Público": "bg-gray-100 text-gray-800",
-        Prospecto: "bg-slate-100 text-slate-800",
-    };
-    return colors[alcanceNorm] || "bg-gray-100 text-gray-700";
-};
-
-const getTipoBadgeClass = (tipo) => {
-    const colors = {
-        video: "bg-rose-100 text-rose-700",
-        manual: "bg-blue-100 text-blue-700",
-        guia: "bg-emerald-100 text-emerald-700",
-        triptico: "bg-violet-100 text-violet-700",
-    };
-    return colors[tipo] || "bg-gray-100 text-gray-700";
-};
-
 const verVideo = (recurso) => {
-    if (estaBloqueado(recurso)) {
-        mostrarNotificacion(
-            `🔒 Contenido restringido. Requiere rol: "${recurso.alcance || "Público"}"`,
-            "error",
-        );
-        return;
-    }
-    const tipoRoute = getTipoConfig(recurso.tipo_material)?.route || "todos";
-    router.visit(`/recursos/${tipoRoute}/${recurso.id}`);
+    if (estaBloqueado(recurso))
+        return mostrarNotificacion(`🔒 Contenido restringido.`, "error");
+    const route =
+        {
+            video: "videos",
+            manual: "manuales",
+            guia: "guias",
+            triptico: "tripticos",
+        }[recurso.tipo_material] || "todos";
+    router.visit(`/recursos/${route}/${recurso.id}`);
 };
 
 const cambiarVista = (modo) => {
     viewMode.value = modo;
     localStorage.setItem("tutorialViewMode", modo);
 };
-
-const filterClass = (tipo) =>
-    tipoSeleccionado.value === tipo
-        ? "filter filter-active"
-        : "filter filter-inactive";
-
 const resetFiltros = () => {
     search.value = "";
     searchDebounced.value = "";
@@ -1561,21 +355,716 @@ const resetFiltros = () => {
     mostrarNotificacion("Filtros limpiados", "success");
 };
 
-onMounted(() => {
-    cargarDatosIniciales();
-});
+onMounted(cargarDatosIniciales);
 </script>
 
+<template>
+    <div
+        class="min-h-screen bg-white text-gray-800 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif] relative overflow-x-hidden"
+    >
+        <!-- Textura de fondo WE COLLAB -->
+        <div
+            class="fixed inset-0 pointer-events-none opacity-[0.03]"
+            style="
+                background-image: radial-gradient(
+                    #003366 0.8px,
+                    transparent 0.8px
+                );
+                background-size: 28px 28px;
+            "
+        ></div>
+
+        <!-- HEADER -->
+        <header
+            class="sticky top-0 z-50 bg-white/98 backdrop-blur-sm border-b border-gray-200 px-6 py-4 shadow-sm"
+        >
+            <div
+                class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4"
+            >
+                <div class="flex items-center gap-4 group">
+                    <!-- <div
+                        class="w-10 h-10 bg-[#003366] rounded-lg flex items-center justify-center transition-all group-hover:shadow-md"
+                    >
+                        <span class="text-white font-['Jura'] font-bold text-xl"
+                            >WC</span
+                        >
+                    </div> -->
+                    <div>
+                        <h1
+                            class="text-xl font-['Jura'] font-bold text-[#003366] tracking-tight"
+                        >
+                            WE COLLAB | Biblioteca de Contenido
+                        </h1>
+                        <p
+                            class="text-[11px] uppercase tracking-wider text-[#003366]/60 font-semibold"
+                        >
+                            Más cercanos, más eficientes
+                        </p>
+                    </div>
+                </div>
+
+                <div
+                    class="flex flex-wrap items-center justify-center gap-4 w-full md:w-auto"
+                >
+                    <div
+                        class="hidden lg:block text-right pr-4 border-r border-gray-200"
+                    >
+                        <p class="text-xs text-gray-500">👋 Bienvenido</p>
+                        <p class="text-sm font-bold text-gray-800">
+                            {{ user?.name || "Invitado" }}
+                            <span
+                                v-if="esRolWeCollab()"
+                                class="ml-2 text-[10px] font-medium text-[#003366] bg-[#003366]/10 px-2 py-0.5 rounded-full"
+                                >We Collab</span
+                            >
+                        </p>
+                    </div>
+
+                    <div class="relative w-full sm:w-64">
+                        <input
+                            v-model="search"
+                            type="text"
+                            placeholder="Buscar contenido..."
+                            class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm outline-none focus:border-[#003366] focus:ring-1 focus:ring-[#003366] transition-all"
+                        />
+                        <span class="absolute left-3 top-2.5 text-gray-400"
+                            >🔍</span
+                        >
+                    </div>
+
+                    <div
+                        class="flex bg-gray-100 p-1 rounded-md border border-gray-200"
+                    >
+                        <button
+                            @click="cambiarVista('grid')"
+                            :class="[
+                                'p-1.5 rounded transition-all',
+                                viewMode === 'grid'
+                                    ? 'bg-white shadow-sm text-[#003366]'
+                                    : 'text-gray-400 hover:text-gray-600',
+                            ]"
+                            title="Vista cuadrícula"
+                        >
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                            >
+                                <path
+                                    d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            @click="cambiarVista('list')"
+                            :class="[
+                                'p-1.5 rounded transition-all',
+                                viewMode === 'list'
+                                    ? 'bg-white shadow-sm text-[#003366]'
+                                    : 'text-gray-400 hover:text-gray-600',
+                            ]"
+                            title="Vista lista"
+                        >
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- BARRA DE FILTROS -->
+        <section
+            class="bg-white border-b border-gray-200 py-3 px-6 sticky top-[73px] z-40"
+        >
+            <div
+                class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4"
+            >
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        v-for="t in tipos"
+                        :key="t.value"
+                        @click="tipoSeleccionado = t.value"
+                        :class="[
+                            'px-4 py-1.5 rounded-full text-xs font-semibold transition-all border',
+                            tipoSeleccionado === t.value
+                                ? 'bg-[#003366] border-[#003366] text-white shadow-sm'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400',
+                        ]"
+                    >
+                        <span class="mr-1.5">{{ t.icon }}</span>
+                        {{ t.label }}
+                    </button>
+                    <button
+                        v-if="
+                            search ||
+                            tipoSeleccionado !== 'todo' ||
+                            categoriaSeleccionada ||
+                            subcategoriaSeleccionada
+                        "
+                        @click="resetFiltros"
+                        class="px-4 py-1.5 rounded-full text-xs font-medium text-gray-500 hover:text-[#003366] hover:bg-gray-100 transition-all"
+                    >
+                        ✕ Limpiar filtros
+                    </button>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <select
+                        v-model="categoriaSeleccionada"
+                        @change="cargarSubcategorias"
+                        class="pl-3 pr-8 py-2 bg-gray-50 border border-gray-300 rounded-md text-xs font-medium focus:border-[#003366] focus:ring-1 focus:ring-[#003366] outline-none appearance-none cursor-pointer"
+                    >
+                        <option value="">Todas las categorías</option>
+                        <option
+                            v-for="cat in categorias"
+                            :key="cat.id"
+                            :value="cat.id"
+                        >
+                            {{ cat.nombre }}
+                        </option>
+                    </select>
+
+                    <select
+                        v-model="subcategoriaSeleccionada"
+                        :disabled="!categoriaSeleccionada"
+                        class="pl-3 pr-8 py-2 bg-gray-50 border border-gray-300 rounded-md text-xs font-medium focus:border-[#003366] focus:ring-1 focus:ring-[#003366] outline-none appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <option value="">Subcategorías</option>
+                        <option
+                            v-for="sub in subcategoriasFiltradas"
+                            :key="sub.id"
+                            :value="sub.id"
+                        >
+                            {{ sub.nombre }}
+                        </option>
+                    </select>
+
+                    <!-- Stats compactos -->
+                    <div
+                        class="hidden lg:flex items-center gap-3 text-[10px] text-gray-400"
+                    >
+                        <span class="flex items-center gap-1">
+                            <span
+                                class="w-1.5 h-1.5 bg-gray-400 rounded-full"
+                            ></span>
+                            Total: {{ stats.total }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <span
+                                class="w-1.5 h-1.5 bg-[#003366] rounded-full"
+                            ></span>
+                            Accesibles: {{ stats.accesibles }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTENIDO PRINCIPAL -->
+        <main class="max-w-7xl mx-auto px-6 py-10 relative">
+            <!-- ERROR -->
+            <div
+                v-if="error"
+                class="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-lg mb-8 flex items-center justify-between"
+            >
+                <div class="flex items-center gap-3">
+                    <span class="text-xl">⚠️</span>
+                    <span class="text-sm">{{ error }}</span>
+                </div>
+                <button
+                    @click="cargarDatosIniciales"
+                    class="text-sm font-semibold text-red-700 hover:text-red-800 underline"
+                >
+                    Reintentar
+                </button>
+            </div>
+
+            <!-- SECCIÓN DESTACADOS (solo cuando no hay filtros activos) -->
+            <div
+                v-if="
+                    !loading &&
+                    materialesAccesibles.length > 0 &&
+                    !search &&
+                    tipoSeleccionado === 'todo' &&
+                    !categoriaSeleccionada &&
+                    !subcategoriaSeleccionada
+                "
+                class="mb-16"
+            >
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-1 h-8 bg-[#CC6600] rounded-full"></div>
+                    <h2 class="text-2xl font-['Jura'] font-bold text-[#003366]">
+                        ⭐ Destacados para ti
+                    </h2>
+                    <span
+                        class="px-2 py-0.5 bg-gray-100 text-[#003366] text-[10px] font-bold rounded-full"
+                        >{{
+                            Math.min(materialesAccesibles.length, 4)
+                        }}
+                        recursos</span
+                    >
+                </div>
+
+                <div
+                    class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+                >
+                    <div
+                        v-for="recurso in materialesAccesibles.slice(0, 4)"
+                        :key="'feat-' + recurso.id"
+                        @click="verVideo(recurso)"
+                        class="group bg-white border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all duration-300"
+                    >
+                        <div
+                            class="aspect-video bg-[#003366] relative overflow-hidden"
+                        >
+                            <img
+                                v-if="getThumbnailVideo(recurso.url)"
+                                :src="getThumbnailVideo(recurso.url)"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                @error="
+                                    $event.target.src =
+                                        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23003366%22/%3E%3Ctext x=%2250%22 y=%2255%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2240%22%3E' +
+                                        getIconoPorTipo(recurso.tipo_material) +
+                                        '%3C/text%3E%3C/svg%3E'
+                                "
+                            />
+                            <div
+                                v-else
+                                class="w-full h-full flex items-center justify-center text-5xl bg-gradient-to-br from-[#003366] to-[#002244]"
+                            >
+                                {{ getIconoPorTipo(recurso.tipo_material) }}
+                            </div>
+                            <div
+                                class="absolute top-2 right-2 px-2 py-0.5 bg-[#CC6600] text-white text-[9px] font-bold rounded shadow-sm"
+                            >
+                                ⭐ Destacado
+                            </div>
+                            <div
+                                class="absolute bottom-0 left-0 right-0 h-1 bg-[#CC6600] transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"
+                            ></div>
+                        </div>
+                        <div class="p-4">
+                            <h3
+                                class="font-bold text-gray-800 text-sm line-clamp-1 mb-2 group-hover:text-[#003366] transition-colors"
+                            >
+                                {{ recurso.titulo }}
+                            </h3>
+                            <p
+                                class="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-4"
+                            >
+                                {{ recurso.descripcion || "Sin descripción" }}
+                            </p>
+                            <button
+                                class="w-full py-2 bg-[#003366] hover:bg-[#002244] text-white text-[11px] font-bold rounded-md transition-all active:scale-95 uppercase tracking-wide"
+                            >
+                                Ver contenido →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTENIDO ORGANIZADO POR CATEGORÍAS -->
+            <div
+                v-if="!loading && categoriasConContenido.length > 0"
+                class="space-y-12"
+            >
+                <div
+                    v-for="cat in categoriasConContenido"
+                    :key="cat.id"
+                    class="relative"
+                >
+                    <!-- Cabecera de categoría -->
+                    <div
+                        class="flex items-center gap-3 mb-6 pb-3 border-b border-gray-100"
+                    >
+                        <div
+                            class="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center text-xl border border-gray-100"
+                        >
+                            {{ cat.icono }}
+                        </div>
+                        <h2
+                            class="text-xl font-['Jura'] font-bold text-gray-800 tracking-tight"
+                        >
+                            {{ cat.nombre }}
+                        </h2>
+                        <span
+                            class="ml-auto text-[10px] font-semibold text-gray-400 tracking-wide"
+                            >{{ cat.totalMateriales }} recursos</span
+                        >
+                    </div>
+
+                    <!-- Subcategorías -->
+                    <div
+                        v-for="sub in cat.subcategorias"
+                        :key="sub.id"
+                        class="mb-10 last:mb-0"
+                    >
+                        <div class="flex items-center gap-3 mb-5">
+                            <div class="w-5 h-5 text-gray-400 text-sm">📁</div>
+                            <h3
+                                class="text-xs font-bold text-gray-500 uppercase tracking-wider"
+                            >
+                                {{ sub.nombre }}
+                            </h3>
+                            <div
+                                class="flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent"
+                            ></div>
+                            <span class="text-[9px] text-gray-400 font-medium"
+                                >{{ sub.items.length }} items</span
+                            >
+                        </div>
+
+                        <!-- VISTA GRID -->
+                        <div
+                            v-if="viewMode === 'grid'"
+                            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-5"
+                        >
+                            <div
+                                v-for="item in sub.items"
+                                :key="item.id"
+                                @click="verVideo(item)"
+                                class="group bg-white border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                            >
+                                <div
+                                    class="aspect-video bg-[#003366] relative overflow-hidden flex-shrink-0"
+                                >
+                                    <img
+                                        v-if="getThumbnailVideo(item.url)"
+                                        :src="getThumbnailVideo(item.url)"
+                                        class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                                        @error="
+                                            $event.target.src =
+                                                'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23003366%22/%3E%3Ctext x=%2250%22 y=%2255%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2240%22%3E' +
+                                                getIconoPorTipo(
+                                                    item.tipo_material,
+                                                ) +
+                                                '%3C/text%3E%3C/svg%3E'
+                                        "
+                                    />
+                                    <div
+                                        v-else
+                                        class="w-full h-full flex items-center justify-center text-4xl bg-gradient-to-br from-[#003366] to-[#002244]"
+                                    >
+                                        {{
+                                            getIconoPorTipo(item.tipo_material)
+                                        }}
+                                    </div>
+                                    <div
+                                        v-if="estaBloqueado(item)"
+                                        class="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center"
+                                    >
+                                        <span
+                                            class="text-white text-sm font-bold px-2 py-1 bg-black/50 rounded"
+                                            >🔒 Restringido</span
+                                        >
+                                    </div>
+                                    <div
+                                        class="absolute top-2 right-2 px-2 py-0.5 bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold rounded"
+                                    >
+                                        {{ getNombreTipo(item.tipo_material) }}
+                                    </div>
+                                </div>
+                                <div class="p-3 flex flex-col flex-1">
+                                    <h4
+                                        class="font-bold text-gray-800 text-xs line-clamp-2 group-hover:text-[#003366] mb-2 transition-colors"
+                                        :class="
+                                            estaBloqueado(item)
+                                                ? 'text-gray-400 group-hover:text-gray-400'
+                                                : ''
+                                        "
+                                    >
+                                        {{ item.titulo }}
+                                    </h4>
+                                    <div
+                                        class="mt-auto flex items-center justify-between pt-2 border-t border-gray-50"
+                                    >
+                                        <span
+                                            class="text-[9px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded"
+                                        >
+                                            {{ item.alcance || "Público" }}
+                                        </span>
+                                        <svg
+                                            class="w-4 h-4 text-[#003366] opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2.5"
+                                                d="M9 5l7 7-7 7"
+                                            />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- VISTA LISTA - Botón siempre visible -->
+                        <div v-else class="space-y-2">
+                            <div
+                                v-for="item in sub.items"
+                                :key="item.id"
+                                @click="verVideo(item)"
+                                class="flex items-center gap-4 p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm hover:border-[#003366]/30 cursor-pointer group transition-all"
+                            >
+                                <div
+                                    class="w-10 h-10 bg-[#003366] rounded-md flex-shrink-0 flex items-center justify-center text-lg transition-transform group-hover:scale-95"
+                                >
+                                    {{ getIconoPorTipo(item.tipo_material) }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h4
+                                        class="font-bold text-sm text-gray-800 truncate group-hover:text-[#003366] transition-colors"
+                                        :class="
+                                            estaBloqueado(item)
+                                                ? 'text-gray-400 group-hover:text-gray-400'
+                                                : ''
+                                        "
+                                    >
+                                        {{ item.titulo }}
+                                    </h4>
+                                    <p class="text-xs text-gray-500 truncate">
+                                        {{
+                                            item.descripcion ||
+                                            "Sin descripción"
+                                        }}
+                                    </p>
+                                </div>
+                                <div class="hidden sm:flex items-center gap-3">
+                                    <span
+                                        class="text-[9px] font-semibold text-gray-400 uppercase tracking-wider"
+                                        >{{
+                                            getNombreTipo(item.tipo_material)
+                                        }}</span
+                                    >
+                                    <span
+                                        class="text-[9px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded"
+                                    >
+                                        {{ item.alcance || "Público" }}
+                                    </span>
+                                    <!-- ✅ Botón SIEMPRE visible (sin opacidad 0) -->
+                                    <button
+                                        class="px-4 py-1.5 bg-[#003366] text-white text-[10px] font-bold rounded-md shadow-sm transition-all uppercase tracking-wider hover:bg-[#002244]"
+                                        :class="
+                                            estaBloqueado(item)
+                                                ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400'
+                                                : ''
+                                        "
+                                        :disabled="estaBloqueado(item)"
+                                    >
+                                        {{
+                                            estaBloqueado(item)
+                                                ? "🔒 Sin acceso"
+                                                : "Abrir"
+                                        }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skeleton Loading -->
+            <div
+                v-if="loading"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6"
+            >
+                <div
+                    v-for="n in 10"
+                    :key="n"
+                    class="bg-gray-50 rounded-lg p-4 space-y-3 border border-gray-100"
+                >
+                    <div
+                        class="aspect-video bg-gray-200 rounded-lg animate-pulse"
+                    ></div>
+                    <div
+                        class="h-3 bg-gray-200 rounded w-3/4 animate-pulse"
+                    ></div>
+                    <div
+                        class="h-2 bg-gray-100 rounded w-full animate-pulse"
+                    ></div>
+                    <div
+                        class="h-2 bg-gray-100 rounded w-1/2 animate-pulse"
+                    ></div>
+                </div>
+            </div>
+
+            <!-- Mensaje cliente sin contenido -->
+            <div
+                v-else-if="
+                    esRolCliente() &&
+                    filtrados.length === 0 &&
+                    tutoriales.length > 0
+                "
+                class="flex flex-col items-center justify-center py-24 text-center"
+            >
+                <div
+                    class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-4xl mb-6 border border-gray-100"
+                >
+                    🔒
+                </div>
+                <h3 class="text-xl font-['Jura'] font-bold text-gray-800 mb-2">
+                    Contenido exclusivo para We Collab
+                </h3>
+                <p class="text-sm text-gray-500 max-w-md mx-auto">
+                    Los materiales que buscas son parte del ecosistema interno
+                    de WE COLLAB.
+                    <br />Tu rol actual:
+                    <span class="font-medium text-[#003366]">{{
+                        getUserRole()
+                    }}</span>
+                </p>
+            </div>
+
+            <!-- Sin resultados -->
+            <div
+                v-else-if="
+                    !loading &&
+                    categoriasConContenido.length === 0 &&
+                    materialesAccesibles.length === 0 &&
+                    (search ||
+                        tipoSeleccionado !== 'todo' ||
+                        categoriaSeleccionada ||
+                        subcategoriaSeleccionada)
+                "
+                class="flex flex-col items-center justify-center py-24 text-center"
+            >
+                <div
+                    class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-4xl mb-6 border border-gray-100"
+                >
+                    🔍
+                </div>
+                <h3 class="text-xl font-['Jura'] font-bold text-gray-800 mb-2">
+                    No se encontraron resultados
+                </h3>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto mb-6">
+                    No hay recursos que coincidan con "{{
+                        search || "los filtros aplicados"
+                    }}"
+                </p>
+                <button
+                    @click="resetFiltros"
+                    class="px-6 py-2.5 bg-[#003366] text-white text-xs font-bold rounded-md hover:bg-[#002244] transition-all uppercase tracking-wide"
+                >
+                    Limpiar filtros
+                </button>
+            </div>
+        </main>
+
+        <!-- FOOTER WE COLLAB -->
+        <footer class="mt-20 bg-white border-t border-gray-200 py-10 px-6">
+            <div class="max-w-7xl mx-auto flex flex-col items-center">
+                <div
+                    class="w-10 h-10 bg-[#003366] rounded-lg flex items-center justify-center mb-5"
+                >
+                    <span class="text-white font-['Jura'] font-bold text-lg"
+                        >WC</span
+                    >
+                </div>
+                <p class="text-sm text-gray-600 mb-2 text-center italic">
+                    "La excelencia en el servicio es y seguirá siendo la
+                    prioridad"
+                </p>
+                <p
+                    class="text-[10px] font-bold text-[#003366] tracking-[0.2em] uppercase mb-6"
+                >
+                    WE COLLAB · Más cercanos, más eficientes
+                </p>
+
+                <div
+                    class="w-full pt-6 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-3 text-[9px] text-gray-400 font-medium uppercase tracking-wider"
+                >
+                    <p>&copy; 2026 WE COLLAB · Todos los derechos reservados</p>
+                    <div class="flex gap-5">
+                        <a
+                            href="#"
+                            class="hover:text-[#003366] transition-colors"
+                            >Términos</a
+                        >
+                        <a
+                            href="#"
+                            class="hover:text-[#003366] transition-colors"
+                            >Privacidad</a
+                        >
+                        <a
+                            href="#"
+                            class="hover:text-[#003366] transition-colors"
+                            >Soporte</a
+                        >
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <!-- TOAST NOTIFICACIONES -->
+        <Teleport to="body">
+            <Transition name="toast">
+                <div
+                    v-if="showToast"
+                    :class="[
+                        'fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-lg shadow-lg border-l-4 flex items-center gap-3 transition-all',
+                        toastType === 'success'
+                            ? 'bg-white border-[#003366] text-gray-800'
+                            : 'bg-red-50 border-red-500 text-red-700',
+                    ]"
+                >
+                    <div
+                        :class="[
+                            'w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold',
+                            toastType === 'success'
+                                ? 'bg-[#003366]/10 text-[#003366]'
+                                : 'bg-red-100 text-red-600',
+                        ]"
+                    >
+                        {{ toastType === "success" ? "✓" : "!" }}
+                    </div>
+                    <div>
+                        <p
+                            class="text-[10px] font-black uppercase tracking-wider"
+                        >
+                            {{ toastType === "success" ? "Éxito" : "Atención" }}
+                        </p>
+                        <p class="text-sm font-medium">{{ toastMessage }}</p>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
+    </div>
+</template>
+
 <style scoped>
-.filter {
-    @apply px-4 py-1.5 rounded-full text-sm font-medium transition whitespace-nowrap;
+/* Fuente Jura para títulos */
+@import url("https://fonts.googleapis.com/css2?family=Jura:wght@600;700&display=swap");
+
+/* Animaciones */
+.toast-enter-active,
+.toast-leave-active {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.filter-active {
-    @apply bg-indigo-600 text-white shadow-md;
+.toast-enter-from {
+    opacity: 0;
+    transform: translateX(60px);
 }
-.filter-inactive {
-    @apply bg-gray-100 text-gray-600 hover:bg-gray-200;
+.toast-leave-to {
+    opacity: 0;
+    transform: scale(0.9);
 }
+
+/* Líneas truncadas */
 .line-clamp-1 {
     display: -webkit-box;
     -webkit-line-clamp: 1;
@@ -1588,26 +1077,40 @@ onMounted(() => {
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
-.toast-enter-active,
-.toast-leave-active {
-    transition: all 0.3s ease;
+
+/* Scrollbar corporativo */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
 }
-.toast-enter-from,
-.toast-leave-to {
-    opacity: 0;
-    transform: translateX(100%);
+::-webkit-scrollbar-track {
+    background: #f3f4f6;
+    border-radius: 10px;
 }
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+::-webkit-scrollbar-thumb {
+    background: #003366;
+    border-radius: 10px;
 }
-.group {
-    animation: fadeInUp 0.3s ease-out;
+::-webkit-scrollbar-thumb:hover {
+    background: #002244;
+}
+
+/* Personalizar selects */
+select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.6rem center;
+    background-repeat: no-repeat;
+    background-size: 1.2em 1.2em;
+    padding-right: 2rem;
+}
+
+/* Eliminar outline por defecto */
+*:focus {
+    outline: none;
+}
+
+/* Mejorar contraste en hover */
+button {
+    cursor: pointer;
 }
 </style>

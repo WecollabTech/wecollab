@@ -12,97 +12,65 @@ const props = defineProps({
 const emit = defineEmits(["update:showingNavigationDropdown"]);
 
 // ================================
-// 🔐 VERIFICACIÓN DE ROLES PERMITIDOS (MEJORADA)
+// 🔐 VERIFICACIÓN DE ROLES PERMITIDOS
 // ================================
-// Roles permitidos para ver el menú completo
 const ALLOWED_ROLE_IDS = [1, 2];
 const ALLOWED_ROLE_NAMES = ["Superadmin we collab", "Admin we collab"];
 
-// Función para obtener el rol del usuario de manera segura
 const getUserRole = () => {
-    // Intentar diferentes formas de acceder al rol
     const user = page.props.auth?.user;
 
     if (!user) {
-        console.warn("No se encontró usuario en la sesión");
         return null;
     }
 
-    // Debug: Mostrar estructura completa del usuario
-    console.log("Estructura completa del usuario:", user);
-    console.log("Roles disponibles:", user.rol);
-
-    // Caso 1: El rol está directamente en user.rol
     if (user.rol) {
-        console.log("Rol encontrado en user.rol:", user.rol);
         return user.rol;
     }
 
-    // Caso 2: El rol está en user.role
     if (user.role) {
-        console.log("Rol encontrado en user.role:", user.role);
         return user.role;
     }
 
-    // Caso 3: El rol está en user.roles (array)
     if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
-        console.log("Roles encontrados en user.roles:", user.roles);
-        return user.roles[0]; // Tomar el primer rol
+        return user.roles[0];
     }
 
-    // Caso 4: El rol está en user.data.rol (para estructuras anidadas)
     if (user.data && user.data.rol) {
-        console.log("Rol encontrado en user.data.rol:", user.data.rol);
         return user.data.rol;
     }
 
-    console.warn(
-        "No se pudo encontrar el rol del usuario en ninguna ubicación esperada",
-    );
     return null;
 };
 
-// Verificar si el usuario tiene acceso al menú completo
 const hasFullMenuAccess = computed(() => {
     const userRole = getUserRole();
 
     if (!userRole) {
-        console.log("No hay rol de usuario, acceso denegado");
         return false;
     }
 
-    console.log("Verificando acceso para rol:", userRole);
-
-    // Verificar por ID
     if (userRole.id && ALLOWED_ROLE_IDS.includes(userRole.id)) {
-        console.log(`Acceso concedido por ID: ${userRole.id}`);
         return true;
     }
 
-    // Verificar por nombre
     if (userRole.nombre && ALLOWED_ROLE_NAMES.includes(userRole.nombre)) {
-        console.log(`Acceso concedido por nombre: ${userRole.nombre}`);
         return true;
     }
 
-    // Si el rol viene como string directamente
     if (typeof userRole === "string" && ALLOWED_ROLE_NAMES.includes(userRole)) {
-        console.log(`Acceso concedido por nombre directo: ${userRole}`);
         return true;
     }
 
-    // Si el rol viene como número ID directamente
     if (typeof userRole === "number" && ALLOWED_ROLE_IDS.includes(userRole)) {
-        console.log(`Acceso concedido por ID directo: ${userRole}`);
         return true;
     }
 
-    console.log(`Acceso denegado para rol:`, userRole);
     return false;
 });
 
 // ================================
-// 📊 CONFIGURACIÓN DEL MENÚ MEJORADA
+// 📊 CONFIGURACIÓN DEL MENÚ
 // ================================
 const menuSections = {
     dashboard: {
@@ -183,6 +151,27 @@ const menuSections = {
         ],
     },
 
+    materiales: {
+        title: "Materiales",
+        icon: "fa-boxes",
+        items: [
+            {
+                key: "tipos_materiales",
+                label: "Tipos de Materiales",
+                icon: "fa-tag",
+                href: "/tipos-materiales",
+                description: "Administrar tipos de materiales",
+            },
+            {
+                key: "formatos_materiales",
+                label: "Formatos de Materiales",
+                icon: "fa-shapes",
+                href: "/formatos-materiales",
+                description: "Administrar formatos de materiales",
+            },
+        ],
+    },
+
     comunidad: {
         title: "Comunidad",
         icon: "fa-users",
@@ -242,12 +231,10 @@ const menuSections = {
 const getCurrentSection = () => {
     const currentUrl = page.url;
 
-    // Verificar si es dashboard
     if (currentUrl === "/dashboard" || currentUrl === "/") {
         return "dashboard";
     }
 
-    // Buscar en qué sección está la URL actual
     for (const [sectionKey, section] of Object.entries(menuSections)) {
         if (section.isSingle) continue;
 
@@ -269,11 +256,11 @@ const getCurrentSection = () => {
 // ================================
 const isSubmenuOpen = ref({
     biblioteca: false,
+    materiales: false,
     comunidad: false,
     sistema: false,
 });
 
-// Inicializar submenús basado en la URL actual
 const initializeOpenSubmenus = () => {
     if (!hasFullMenuAccess.value) return;
     const currentSection = getCurrentSection();
@@ -282,7 +269,6 @@ const initializeOpenSubmenus = () => {
     }
 };
 
-// Watch para cambios de ruta
 watch(
     () => page.url,
     () => {
@@ -352,12 +338,6 @@ onMounted(() => {
     initializeOpenSubmenus();
     window.addEventListener("resize", handleResize);
     window.addEventListener("keydown", handleKeydown);
-
-    // Debug inicial
-    console.log("=== DEBUG INICIAL SIDEBAR ===");
-    console.log("Usuario completo:", page.props.auth?.user);
-    console.log("¿Tiene acceso al menú?", hasFullMenuAccess.value);
-    console.log("==============================");
 });
 
 onUnmounted(() => {
@@ -767,7 +747,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Scrollbar personalizado */
 nav::-webkit-scrollbar {
     width: 5px;
 }
@@ -794,18 +773,6 @@ nav::-webkit-scrollbar-thumb:hover {
     );
 }
 
-/* Transiciones */
-.fade-enter-active,
-.fade-leave-active {
-    transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-    opacity: 0;
-}
-
-/* Animaciones */
 @keyframes pulse {
     0%,
     100% {
@@ -824,7 +791,6 @@ nav::-webkit-scrollbar-thumb:hover {
     transform: rotate(180deg);
 }
 
-/* Mejora de renderizado */
 aside {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

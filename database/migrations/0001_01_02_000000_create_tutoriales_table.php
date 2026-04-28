@@ -34,6 +34,11 @@ return new class extends Migration {
             $table->foreignId('subcategoria_id')->nullable()->constrained('subcategorias')->onDelete('set null');
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
 
+            // ✅ NUEVAS FOREIGN KEYS para materiales
+            $table->foreignId('tipo_material_id')->nullable()->constrained('tipos_materiales')->onDelete('set null');
+            $table->foreignId('formato_material_id')->nullable()->constrained('formatos_materiales')->onDelete('set null');
+
+
             $table->integer('vistas')->default(0);
             $table->timestamps();
         });

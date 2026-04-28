@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\TipoMaterialController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RoleController; // Importa el controlador correcto
 use App\Http\Controllers\PermisoController; // Importa el controlador correcto
 use App\Http\Controllers\CategoriaController; // Importa el controlador correcto
+use App\Http\Controllers\FormatoMaterialController;
 use App\Http\Controllers\RecursosSLCController;
 use App\Http\Controllers\SubcategoriaController; // Importa el controlador correcto
 use App\Http\Controllers\TutorialController; // Importa el controlador correcto
@@ -108,4 +110,29 @@ Route::prefix('usuarios')->group(function () {
     Route::put('/{usuario}', [UserManagementController::class, 'update']);
     Route::delete('/{usuario}', [UserManagementController::class, 'destroy']);
     Route::patch('/{usuario}/toggle-status', [UserManagementController::class, 'toggleStatus']);
+});
+
+
+
+// Dentro del grupo existente o agregar:
+Route::prefix('tipos-materiales')->group(function () {
+    Route::get('/', [TipoMaterialController::class, 'index']);
+    Route::post('/', [TipoMaterialController::class, 'store']);
+    Route::get('/all', [TipoMaterialController::class, 'all']);
+    Route::get('/lista', [TipoMaterialController::class, 'lista']);
+    Route::get('/{tipoMaterial}', [TipoMaterialController::class, 'show']);
+    Route::put('/{tipoMaterial}', [TipoMaterialController::class, 'update']);
+    Route::delete('/{tipoMaterial}', [TipoMaterialController::class, 'destroy']);
+});
+
+
+// Grupo de rutas para formatos de materiales
+Route::prefix('formatos-materiales')->group(function () {
+    Route::get('/', [FormatoMaterialController::class, 'index']);
+    Route::post('/', [FormatoMaterialController::class, 'store']);
+    Route::get('/all', [FormatoMaterialController::class, 'all']);
+    Route::get('/lista', [FormatoMaterialController::class, 'lista']);
+    Route::get('/{formatoMaterial}', [FormatoMaterialController::class, 'show']);
+    Route::put('/{formatoMaterial}', [FormatoMaterialController::class, 'update']);
+    Route::delete('/{formatoMaterial}', [FormatoMaterialController::class, 'destroy']);
 });

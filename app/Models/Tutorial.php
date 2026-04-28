@@ -22,6 +22,8 @@ class Tutorial extends Model
         'observacion',
         'categorias_id',      // ✅ CORRECTO: con S
         'subcategoria_id',
+        'tipo_material_id',      // 👈 NUEVO
+        'formato_material_id',   // 👈 NUEVO
         'user_id',
         'vistas'
     ];
@@ -49,6 +51,59 @@ class Tutorial extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+
+    public function tipoMaterial()
+    {
+        return $this->belongsTo(TipoMaterial::class, 'tipo_material_id');
+    }
+
+
+    public function formatoMaterial()
+    {
+        return $this->belongsTo(FormatoMaterial::class, 'formato_material_id');
+    }
+
+
+
+
+    public function hasTipoMaterial(): bool
+    {
+        return !is_null($this->tipo_material_id);
+    }
+    /**
+     * Verificar si el tutorial tiene formato de material asignado
+     */
+    public function hasFormatoMaterial(): bool
+    {
+        return !is_null($this->formato_material_id);
+    }
+
+
+    /**
+     * Obtener el nombre del tipo de material
+     */
+    public function getTipoMaterialNombreAttribute(): string
+    {
+        return $this->tipoMaterial?->nombre ?? 'Sin asignar';
+    }
+
+    /**
+     * Obtener el nombre del formato de material
+     */
+    public function getFormatoMaterialNombreAttribute(): string
+    {
+        return $this->formatoMaterial?->nombre ?? 'Sin asignar';
+    }
+
+
+
+
+
+
+
+
+
 
     // Scopes
     public function scopeActivo($query)

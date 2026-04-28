@@ -441,7 +441,7 @@ class CreateNewUser implements CreatesNewUsers
     private function getAdminSlcRole(): Role
     {
         return Role::firstOrCreate(
-            ['nombre' => 'Usuario Admin SLC'],
+            ['nombre' => 'Usuario Premium SLC'],
             ['descripcion' => 'Administrador de SLC con acceso premium']
         );
     }
